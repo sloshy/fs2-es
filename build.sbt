@@ -4,6 +4,7 @@ val fs2V = "2.0.1"
 lazy val root = (project in file("."))
   .settings(
     name := "fs2-es",
+    organization := "dev.rpeters",
     libraryDependencies ++= Seq(
       "co.fs2" %% "fs2-io" % fs2V,
       "io.chrisdavenport" %% "agitation" % "0.2.0-M1",
