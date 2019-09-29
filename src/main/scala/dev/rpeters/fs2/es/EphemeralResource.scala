@@ -8,6 +8,7 @@ import cats.effect.concurrent.Ref
 import cats.Applicative
 import io.chrisdavenport.agitation.Agitation
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.Duration
 
 sealed trait EphemeralResource[F[_], A] {
 
@@ -27,7 +28,6 @@ object EphemeralResource {
         isExpired <- Deferred.tryable[F, Unit]
         _ <- (ag.settled >> isExpired.complete(())).start
       } yield new EphemeralResource[F, A] {
-        private def agIfZero(i: Int) = if (i == 0) ag.agitate(dur) else Applicative[F].unit
         def use[B](f: A => F[B]): F[Option[B]] = {
           isExpired.tryGet
             .map(_.isDefined)
@@ -37,13 +37,13 @@ object EphemeralResource {
                 oldCount <- countRef.modify { i =>
                   (i + 1) -> i
                 }
-                _ <- agIfZero(oldCount)
+                _ <- if (oldCount == 0) ag.agitate(Duration.Inf) else Applicative[F].unit
                 b <- f(a)
-                count <- countRef.modify { i =>
+                newCount <- countRef.modify { i =>
                   val next = i - 1
                   next -> next
                 }
-                _ <- agIfZero(count)
+                _ <- if (newCount == 0) ag.agitate(dur) else Applicative[F].unit
               } yield b.some
             )
         }
@@ -69,7 +69,7 @@ object EphemeralResource {
             }
             .map(_ == 0)
             .ifM(
-              isExpired.complete(()) >> Option.empty[B].pure[F],
+              isExpired.complete(()).attempt >> Option.empty[B].pure[F],
               f(a).map(_.some)
             )
         }
