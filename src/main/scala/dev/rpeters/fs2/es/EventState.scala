@@ -22,13 +22,11 @@ sealed trait EventState[F[_], E, A] {
 
 sealed trait SignallingEventState[F[_], E, A] extends EventState[F, E, A] {
 
-  /** A continuous stream of this state's current value.
-    * See [[SignallingRef.continuous]]. */
+  /** A continuous stream of this state's current value at the time of pulling. */
   def continuous: Stream[F, A]
 
   /** A stream of the latest updates to state.
-    * May not include all changes depending on when the current thread pulls.
-    * See [[SignallingRef.discrete]]. */
+    * May not include all changes depending on when the current thread pulls. */
   def discrete: Stream[F, A]
 }
 
