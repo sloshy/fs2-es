@@ -3,8 +3,14 @@
 This is a small library to encode event-sourcing patterns using FS2, a streaming library in Scala.
 The library is polymorphic using Cats Effect, so you can use it with any effect type you want that implements `cats.effect.Concurrent`.
 
-This library is VERY much a work in progress - use at your own risk.
-Currently the only way to run the library is by publishing it locally yourself - setting up sonatype at the moment.
+**This library is VERY much a work in progress - use at your own risk.**
+
+To use, add the library to your `build.sbt` like so:
+```
+libraryDependencies ++= "dev.rpeters" %% "fs2-es" % "0.1.0"
+```
+
+Currently only Scala 2.13 is supported. 2.12 will be added at a future date.
 
 ## Event Sourcing - Brief Introduction
 
