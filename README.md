@@ -7,12 +7,12 @@ The library is polymorphic using Cats Effect, so you can use it with any effect 
 
 To use, add the library to your `build.sbt` like so:
 ```
-libraryDependencies ++= "dev.rpeters" %% "fs2-es" % "0.1.0"
+libraryDependencies ++= "dev.rpeters" %% "fs2-es" % "0.1.1"
 ```
 
-Currently only Scala 2.13 is supported. 2.12 will be added at a future date.
+Currently Scala 2.12 and 2.13 are both supported.
 
-## Event Sourcing - Brief Introduction
+## Event-Sourcing - Brief Introduction
 
 Event sourcing is an age-old concept about how you model state in your applications.
 To put it simply, all state is modeled as a left fold on a linear sequence of "events".
@@ -42,7 +42,7 @@ For example, many frameworks make an opinionated decision about where you store 
 This library has nothing to say about persistence, only functionality related to restoring and managing the lifetimes of state from events.
 You can very easily build your own event log just by serializing events and putting them in a database table, Apache Kafka or Pulsar, or even to a raw file for example, and in my opinion that is the easiest part of this to "get right" on your own.
 
-This library handles some of the more easily composable parts of event sourcing instead of telling you exactly how you should structure your entire program down to the database level.
+This library chooses to focus on some of the more easily composable parts of event sourcing.
 To that end, it comes with a few useful utilities you should get to know:
 
 ### EventState
@@ -61,8 +61,8 @@ val initialEventState = for {
 } yield result
 // initialEventState: IO[Int] = Bind(
 //   Map(
-//     Delay(cats.effect.concurrent.Ref$$$Lambda$7940/1664855087@69f6ddea),
-//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$7941/138464151@7cd322e7,
+//     Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@140d56cb),
+//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$6579/491444192@188f8b37,
 //     0
 //   ),
 //   <function1>
@@ -74,8 +74,8 @@ initialEventState.unsafeRunSync()
 val hydratedEventState = EventState[IO].hydrated[Int, Int](1, Stream.emit(1))(_ + _).flatMap(es => es.get)
 // hydratedEventState: IO[Int] = Bind(
 //   Bind(
-//     Delay(cats.effect.concurrent.Ref$$$Lambda$7940/1664855087@104138a5),
-//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$7944/952421671@38b932e3
+//     Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@48e7a0b6),
+//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$6582/304646530@5457d137
 //   ),
 //   <function1>
 // )
@@ -95,8 +95,8 @@ val hookedUpStream = EventState[IO].initial[Int, Int](1)(_ + _).flatMap { es =>
 }
 // hookedUpStream: IO[List[Int]] = Bind(
 //   Map(
-//     Delay(cats.effect.concurrent.Ref$$$Lambda$7940/1664855087@2ac63b64),
-//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$7941/138464151@107dfb6a,
+//     Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@88ae873),
+//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$6579/491444192@62d96b6,
 //     0
 //   ),
 //   <function1>
@@ -125,9 +125,9 @@ import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
 implicit val cs = IO.contextShift(global)
-// cs: ContextShift[IO] = cats.effect.internals.IOContextShift@325cd21e
+// cs: ContextShift[IO] = cats.effect.internals.IOContextShift@4fb67fa4
 implicit val timer = IO.timer(global)
-// timer: Timer[IO] = cats.effect.internals.IOTimer@30abba0d
+// timer: Timer[IO] = cats.effect.internals.IOTimer@2d8e5a84
 
 val timedResource = for {
   res <- EphemeralResource[IO].timed(1, 2.seconds)
@@ -139,12 +139,12 @@ val timedResource = for {
 //   Bind(
 //     Bind(
 //       Bind(
-//         Delay(cats.effect.concurrent.Deferred$$$Lambda$7972/2009922307@21909d5d),
-//         io.chrisdavenport.agitation.Agitation$$$Lambda$7973/1717375000@9363e31
+//         Delay(cats.effect.concurrent.Deferred$$$Lambda$6610/1886818838@619336be),
+//         io.chrisdavenport.agitation.Agitation$$$Lambda$6611/1466410374@6f1957e2
 //       ),
-//       cats.FlatMap$$Lambda$7975/67260075@5daec12b
+//       cats.FlatMap$$Lambda$6613/268246130@13ae4efa
 //     ),
-//     dev.rpeters.fs2.es.EphemeralResource$EphemeralResourcePartiallyApplied$$Lambda$7976/1988300656@30387341
+//     dev.rpeters.fs2.es.EphemeralResource$EphemeralResourcePartiallyApplied$$Lambda$6614/199214849@4cab7c71
 //   ),
 //   <function1>
 // )
@@ -157,7 +157,7 @@ There is also a variant `EphemeralResource[F].uses` that lets you specify a maxi
 
 n.b. Despite the name and `use` method semantics, this type has nothing in common with `cats.effect.Resource`.
 
-## EventStateManager
+### EventStateManager
 
 Now that we have abstractions for both event-sourced state and timed lifetime management, we can put the two together and automatically manage the lifetimes of `EventState` with `EventStateManager`.
 
@@ -207,8 +207,8 @@ import dev.rpeters.fs2.es.EventStateManager
 
 val managerF = EventStateManager[IO].rehydrating(initializer)(keyHydrator[IO])(eventProcessor)(ttl, existenceCheck[IO])
 // managerF: IO[AnyRef with EventStateManager[IO, String, Int, User]] = Map(
-//   Delay(cats.effect.concurrent.Ref$$$Lambda$7940/1664855087@2d980945),
-//   scala.Function1$$Lambda$8039/519313484@6943244,
+//   Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@11f672a7),
+//   scala.Function1$$Lambda$6676/1918448754@70ce37fd,
 //   1
 // )
 ```
@@ -259,7 +259,7 @@ fullProgram.unsafeRunSync()
 As you would expect, these states in memory are only kept for the specified duration of 2 minutes.
 While not shown here, you can try it yourself or look in the library tests for examples.
 
-### Addendum: MapRef
+#### Addendum: MapRef
 
 Not directly part of the API but made public for the current release anyway, `MapRef` is used internally as a small wrapper around an immutable `Map` inside of a `cats.effect.concurrent.Ref`.
 Feel free to use it in your own projects, or as part of your own codebase, if you find it necessary.
@@ -270,7 +270,7 @@ Now that we've gone through the library at large, there remains the question of 
 If you are doing a small event-sourced program and maybe only have a few, finite sources of event-sourced state, you can get by with only `EventState` just fine.
 If you have a number that you are quite confident should fit in memory, but might be dynamic for other reasons, make a `MapRef[K, EventState]` or use some other pattern/structure to organize your state.
 If you need custom lifetime management built on top of that, feel free to write your own structures using `EphemeralResource` as well on top of that, or on the side as-needed.
-Lastly, if you need all of that plus lifetime management, `EventStateManager` should give you everything you need at once.
+Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateManager` should give you everything you need at once.
 It not only handles retrieving your state from your event log as you define it, but it also makes sure that you do not waste precious time or resources re-running the same event log queries by caching state in-memory.
 
 I wrote this library with composition in mind, so if you do not need "the full package" you should very easily be able to build what you need with each of the smaller parts that make up one `EventStateManager`.

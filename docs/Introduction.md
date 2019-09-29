@@ -25,7 +25,7 @@ For example, many frameworks make an opinionated decision about where you store 
 This library has nothing to say about persistence, only functionality related to restoring and managing the lifetimes of state from events.
 You can very easily build your own event log just by serializing events and putting them in a database table, Apache Kafka or Pulsar, or even to a raw file for example, and in my opinion that is the easiest part of this to "get right" on your own.
 
-This library handles some of the more easily composable parts of event sourcing instead of telling you exactly how you should structure your entire program down to the database level.
+This library chooses to focus on some of the more easily composable parts of event sourcing.
 To that end, it comes with a few useful utilities you should get to know:
 
 ## EventState
@@ -190,7 +190,7 @@ Now that we've gone through the library at large, there remains the question of 
 If you are doing a small event-sourced program and maybe only have a few, finite sources of event-sourced state, you can get by with only `EventState` just fine.
 If you have a number that you are quite confident should fit in memory, but might be dynamic for other reasons, make a `MapRef[K, EventState]` or use some other pattern/structure to organize your state.
 If you need custom lifetime management built on top of that, feel free to write your own structures using `EphemeralResource` as well on top of that, or on the side as-needed.
-Lastly, if you need all of that plus lifetime management, `EventStateManager` should give you everything you need at once.
+Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateManager` should give you everything you need at once.
 It not only handles retrieving your state from your event log as you define it, but it also makes sure that you do not waste precious time or resources re-running the same event log queries by caching state in-memory.
 
 I wrote this library with composition in mind, so if you do not need "the full package" you should very easily be able to build what you need with each of the smaller parts that make up one `EventStateManager`.
