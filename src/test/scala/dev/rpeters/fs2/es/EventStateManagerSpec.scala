@@ -18,7 +18,8 @@ class EventStateManagerSpec extends FreeSpec with Matchers with ScalaCheckProper
         implicit val cs = tc.contextShift[IO]
         implicit val timer = tc.timer[IO]
 
-        val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
+        val manager =
+          EventStateManager[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
         val program = manager.flatMap { m =>
           for {
             first <- m.use("test")(_.doNext(1))
@@ -42,7 +43,10 @@ class EventStateManagerSpec extends FreeSpec with Matchers with ScalaCheckProper
       implicit val timer = tc.timer[IO]
 
       // Manager is configured such that the existence check is always false, forcing it to rely on a memory check.
-      val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream(1, 2, 3))(_ + _)(5.seconds, _ => IO.pure(false))
+      val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream(1, 2, 3))(_ + _)(
+        5.seconds,
+        _ => IO.pure(false)
+      )
       val program = manager.flatMap { m =>
         for {
           added <- m.add("test")
@@ -52,8 +56,8 @@ class EventStateManagerSpec extends FreeSpec with Matchers with ScalaCheckProper
 
       val running = program.unsafeToFuture()
       val (added, notAdded) = Await.result(running, 2.seconds)
-      added.isDefined shouldBe true
-      notAdded.isDefined shouldBe false
+      added shouldBe true
+      notAdded shouldBe false
     }
     "Should not add state that already exists in the event log" in {
       val tc = TestContext()
@@ -61,7 +65,10 @@ class EventStateManagerSpec extends FreeSpec with Matchers with ScalaCheckProper
       implicit val timer = tc.timer[IO]
 
       // Manager is configured to have an existence check that always returns true.
-      val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(5.seconds, k => if (k == "test") IO.pure(false) else IO.pure(true))
+      val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
+        5.seconds,
+        k => if (k == "test") IO.pure(false) else IO.pure(true)
+      )
       val program = manager.flatMap { m =>
         for {
           added <- m.add("test")
@@ -71,8 +78,8 @@ class EventStateManagerSpec extends FreeSpec with Matchers with ScalaCheckProper
 
       val running = program.unsafeToFuture()
       val (added, notAdded) = Await.result(running, 2.seconds)
-      added.isDefined shouldBe true
-      notAdded.isDefined shouldBe false
+      added shouldBe true
+      notAdded shouldBe false
     }
   }
 }
