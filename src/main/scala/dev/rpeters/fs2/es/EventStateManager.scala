@@ -12,7 +12,7 @@ sealed trait EventStateManager[F[_], K, E, A] {
   def use[B](k: K)(f: EventState[F, E, A] => F[B]): F[Option[B]]
 
   /** Add a new state to the manager by key. */
-  def add(k: K): F[Option[EventState[F, E, A]]]
+  def add(k: K): F[Boolean]
 
   /** Forwards events to their `EventState` by key.
     * Emits key/new state pairs (`None` if state does not exist) */
@@ -60,20 +60,20 @@ object EventStateManager {
                 }
               } yield result
           }
-        def add(k: K): F[Option[EventState[F, E, A]]] = {
+        def add(k: K): F[Boolean] = {
           existenceCheck(k).ifM(
             {
-              Option.empty[EventState[F, E, A]].pure[F]
+              false.pure[F]
             }, {
               mapRef.get(k).flatMap {
                 case Some(_) =>
-                  Option.empty[EventState[F, E, A]].pure[F]
+                  false.pure[F]
                 case None =>
                   for {
                     es <- EventState[F].initial[E, A](initializer(k))(eventProcessor)
                     eph <- EphemeralResource[F].timed(es, dur)
                     _ <- mapRef.add(k -> eph)
-                  } yield es.some
+                  } yield true
               }
 
             }
