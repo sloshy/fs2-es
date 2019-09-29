@@ -1,4 +1,5 @@
 # FS2-ES
+![Sonatype Nexus (Releases)](https://img.shields.io/nexus/r/dev.rpeters/fs2-es_2.13?label=latest&server=https%3A%2F%2Foss.sonatype.org)
 
 This is a small library to encode event-sourcing patterns using FS2, a streaming library in Scala.
 The library is polymorphic using Cats Effect, so you can use it with any effect type you want that implements `cats.effect.Concurrent`.
