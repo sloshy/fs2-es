@@ -5,6 +5,7 @@ import cats.effect.concurrent.Ref
 import cats.effect.Sync
 
 sealed trait MapRef[F[_], K, V] {
+
   /** Add a key/value pair to the map. */
   def add(kv: (K, V)): F[Unit]
 
@@ -23,7 +24,7 @@ object MapRef {
       def get(k: K): F[Option[V]] = ref.get.map(_.get(k))
     }
     def empty[K, V] = Ref[F].of(Map.empty[K, V]).map(mapFromRef)
-    def of[K, V](kvs: (K, V)*) = Ref[F].of(Map.from(kvs)).map(mapFromRef)
+    def of[K, V](map: Map[K, V]) = Ref[F].of(map).map(mapFromRef)
   }
   def apply[F[_]: Sync] = new MapRefPartiallyApplied[F]
 }
