@@ -8,7 +8,7 @@ The library is polymorphic using Cats Effect, so you can use it with any effect 
 
 To use, add the library to your `build.sbt` like so:
 ```
-libraryDependencies ++= "dev.rpeters" %% "fs2-es" % "0.1.1"
+libraryDependencies += "dev.rpeters" %% "fs2-es" % "0.1.1"
 ```
 
 Currently Scala 2.12 and 2.13 are both supported.
