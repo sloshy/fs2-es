@@ -17,6 +17,9 @@ sealed trait MapRef[F[_], K, V] {
 
   /** Atomically modify the value of an entry by key, returning a result value. */
   def modify[A](k: K)(f: V => (V, A)): F[Option[A]]
+
+  /** Atomically add or modify the value for a given key. */
+  def upsert[A](k: K)(f: Option[V] => (V, A)): F[Option[A]]
 }
 
 object MapRef {
@@ -30,6 +33,10 @@ object MapRef {
         resultOpt.fold(map -> Option.empty[A]) { result =>
           (map + (k -> result._1), result._2.some)
         }
+      }
+      def upsert[A](k: K)(f: Option[V] => (V, A)): F[Option[A]] = ref.modify { map =>
+        val (v, a) = f(map.get(k))
+        (map + (k -> v), a.some)
       }
     }
     def empty[K, V] = Ref[F].of(Map.empty[K, V]).map(mapFromRef)
