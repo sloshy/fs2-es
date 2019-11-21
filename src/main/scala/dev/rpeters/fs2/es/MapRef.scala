@@ -5,7 +5,6 @@ import cats.effect.concurrent.Ref
 import cats.effect.Sync
 
 sealed trait MapRef[F[_], K, V] {
-
   /** Add a key/value pair to the map. Overwrites a value if it exists. */
   def add(kv: (K, V)): F[Unit]
 
@@ -19,7 +18,7 @@ sealed trait MapRef[F[_], K, V] {
   def modify[A](k: K)(f: V => (V, A)): F[Option[A]]
 
   /** Atomically add or modify the value for a given key. */
-  def upsert[A](k: K)(f: Option[V] => (V, A)): F[Option[A]]
+  def upsertOpt[A](k: K)(f: Option[V] => (V, A)): F[A]
 }
 
 object MapRef {
@@ -34,9 +33,9 @@ object MapRef {
           (map + (k -> result._1), result._2.some)
         }
       }
-      def upsert[A](k: K)(f: Option[V] => (V, A)): F[Option[A]] = ref.modify { map =>
+      def upsertOpt[A](k: K)(f: Option[V] => (V, A)): F[A] = ref.modify { map =>
         val (v, a) = f(map.get(k))
-        (map + (k -> v), a.some)
+        (map + (k -> v), a)
       }
     }
     def empty[K, V] = Ref[F].of(Map.empty[K, V]).map(mapFromRef)
