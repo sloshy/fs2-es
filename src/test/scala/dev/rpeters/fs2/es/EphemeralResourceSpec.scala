@@ -1,15 +1,15 @@
 package dev.rpeters.fs2.es
 
 import cats.implicits._
-import org.scalatest.FreeSpec
-import org.scalatest.Matchers
 import cats.effect.laws.util.TestContext
 import cats.effect.IO
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import scala.util.Try
+import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 
-class EphemeralResourceSpec extends FreeSpec with Matchers {
+class EphemeralResourceSpec extends AnyFreeSpec with Matchers {
 
   "EphemeralResource" - {
     "timed" - {

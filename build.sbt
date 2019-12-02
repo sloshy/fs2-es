@@ -10,7 +10,7 @@ lazy val root = (project in file("."))
       "io.chrisdavenport" %% "agitation" % "0.2.0-M1",
       "org.typelevel" %% "cats-effect-laws" % "2.0.0" % Test,
       "org.scalacheck" %% "scalacheck" % "1.14.2" % Test,
-      "org.scalatest" %% "scalatest" % "3.0.8" % Test
+      "org.scalatest" %% "scalatest" % "3.1.0" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
     crossScalaVersions := Seq("2.12.10", "2.13.1")

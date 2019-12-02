@@ -7,10 +7,10 @@ import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import scala.concurrent.duration._
 import cats.effect.laws.util.TestContext
 import scala.concurrent.Await
-import org.scalatest.FreeSpec
-import org.scalatest.Matchers
+import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 
-class EventStateManagerSpec extends FreeSpec with Matchers with ScalaCheckPropertyChecks {
+class EventStateManagerSpec extends AnyFreeSpec with Matchers with ScalaCheckPropertyChecks {
   "EventStateManager" - {
     "Rehydrating" - {
       "Should reload state after the TTL elapses" in {
