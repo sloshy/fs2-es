@@ -4,10 +4,11 @@ package dev.rpeters.fs2.es
 import cats.effect._
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import fs2.Stream
-import org.scalatest.{FreeSpec, Matchers}
 import cats.effect.laws.util.TestContext
+import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 
-class EventStateSpec extends FreeSpec with Matchers with ScalaCheckPropertyChecks {
+class EventStateSpec extends AnyFreeSpec with Matchers with ScalaCheckPropertyChecks {
 
   "EventState" - {
     "Hydrated" - {
