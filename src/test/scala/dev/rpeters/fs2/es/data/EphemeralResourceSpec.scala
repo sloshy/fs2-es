@@ -1,4 +1,4 @@
-package dev.rpeters.fs2.es
+package dev.rpeters.fs2.es.data
 
 import cats.implicits._
 import cats.effect.laws.util.TestContext
@@ -8,8 +8,6 @@ import scala.concurrent.Await
 import scala.util.Try
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
-
-import data._
 
 class EphemeralResourceSpec extends AnyFreeSpec with Matchers {
 
