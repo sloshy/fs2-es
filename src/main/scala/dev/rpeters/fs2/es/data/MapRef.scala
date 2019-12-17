@@ -1,10 +1,11 @@
-package dev.rpeters.fs2.es
+package dev.rpeters.fs2.es.data
 
 import cats.implicits._
 import cats.effect.concurrent.Ref
 import cats.effect.Sync
 
 sealed trait MapRef[F[_], K, V] {
+
   /** Add a key/value pair to the map. Overwrites a value if it exists. */
   def add(kv: (K, V)): F[Unit]
 

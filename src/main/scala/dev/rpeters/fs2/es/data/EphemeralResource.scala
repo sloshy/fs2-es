@@ -1,4 +1,4 @@
-package dev.rpeters.fs2.es
+package dev.rpeters.fs2.es.data
 
 import cats.implicits._
 import cats.effect._

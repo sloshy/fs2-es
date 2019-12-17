@@ -9,6 +9,8 @@ import scala.util.Try
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 
+import data._
+
 class EphemeralResourceSpec extends AnyFreeSpec with Matchers {
 
   "EphemeralResource" - {

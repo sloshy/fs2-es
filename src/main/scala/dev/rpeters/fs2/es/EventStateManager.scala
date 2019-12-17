@@ -6,6 +6,8 @@ import fs2.{Pipe, Stream}
 import scala.concurrent.duration.FiniteDuration
 import cats.effect.concurrent.Ref
 
+import data._
+
 sealed trait EventStateManager[F[_], K, E, A] {
 
   /** Access some event state by key if it exists. */
