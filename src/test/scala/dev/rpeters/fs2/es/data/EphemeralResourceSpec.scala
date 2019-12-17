@@ -1,23 +1,17 @@
 package dev.rpeters.fs2.es.data
 
 import cats.implicits._
-import cats.effect.laws.util.TestContext
 import cats.effect.IO
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import scala.util.Try
-import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.matchers.should.Matchers
+import dev.rpeters.fs2.es.BaseTestSpec
 
-class EphemeralResourceSpec extends AnyFreeSpec with Matchers {
+class EphemeralResourceSpec extends BaseTestSpec {
 
   "EphemeralResource" - {
     "timed" - {
       "Should last as long as the specified duration" in {
-        val tc = TestContext()
-        implicit val cs = tc.contextShift[IO]
-        implicit val timer = tc.timer[IO]
-
         val program = for {
           eph <- EphemeralResource[IO].timed(1, 5.seconds)
           _ <- timer.sleep(4.seconds)
@@ -37,10 +31,6 @@ class EphemeralResourceSpec extends AnyFreeSpec with Matchers {
         result._2.isDefined shouldBe false
       }
       "Should not expire if the specified duration does not occur between uses" in {
-        val tc = TestContext()
-        implicit val cs = tc.contextShift[IO]
-        implicit val timer = tc.timer[IO]
-
         val program = for {
           eph <- EphemeralResource[IO].timed(1, 5.seconds)
           _ <- eph.expired

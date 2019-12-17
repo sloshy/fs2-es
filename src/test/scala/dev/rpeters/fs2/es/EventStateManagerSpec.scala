@@ -1,23 +1,14 @@
 package dev.rpeters.fs2.es
 
-// import cats.implicits._
 import cats.effect._
 import fs2.Stream
-import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import scala.concurrent.duration._
-import cats.effect.laws.util.TestContext
 import scala.concurrent.Await
-import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.matchers.should.Matchers
 
-class EventStateManagerSpec extends AnyFreeSpec with Matchers with ScalaCheckPropertyChecks {
+class EventStateManagerSpec extends BaseTestSpec {
   "EventStateManager" - {
     "Rehydrating" - {
       "Should reload state after the TTL elapses" in {
-        val tc = TestContext()
-        implicit val cs = tc.contextShift[IO]
-        implicit val timer = tc.timer[IO]
-
         val manager =
           EventStateManager[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
         val program = manager.flatMap { m =>
@@ -38,10 +29,6 @@ class EventStateManagerSpec extends AnyFreeSpec with Matchers with ScalaCheckPro
       }
     }
     "Should not add state that already exists in-memory" in {
-      val tc = TestContext()
-      implicit val cs = tc.contextShift[IO]
-      implicit val timer = tc.timer[IO]
-
       // Manager is configured such that the existence check is always false, forcing it to rely on a memory check.
       val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream(1, 2, 3))(_ + _)(
         5.seconds,
@@ -60,10 +47,6 @@ class EventStateManagerSpec extends AnyFreeSpec with Matchers with ScalaCheckPro
       notAdded shouldBe false
     }
     "Should not add state that already exists in the event log" in {
-      val tc = TestContext()
-      implicit val cs = tc.contextShift[IO]
-      implicit val timer = tc.timer[IO]
-
       // Manager is configured to have an existence check that always returns true.
       val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
         5.seconds,
