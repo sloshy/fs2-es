@@ -9,6 +9,7 @@ import scala.concurrent.duration._
 
 /** A map with values that may or may not be completed */
 sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
+
   /** Add a value to this map that may be completed later. */
   def add(k: K)(d: D): F[Unit]
 
@@ -24,6 +25,11 @@ sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
   /** Get the value for a given key asynchronously once it is available. */
   def get(k: K): F[V]
 
+  /** Get the value for a given key asynchronously only if the key currently exists.
+    * This means if a value is currently being awaited, you will eventually receive `Some` value.
+    * Otherwise, it will immediately return `None`. */
+  def getOpt(k: K): F[Option[V]]
+
   /** Get a `Deferred` that completes when the requested value is available. */
   def getDeferred(k: K): F[D]
 
@@ -33,6 +39,7 @@ sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
 
 /** An extension of `DeferredMap` that supports checking the status of elements. */
 sealed trait TryableDeferredMap[F[_], K, V] extends DeferredMap[F, K, V, TryableDeferred[F, V]] {
+
   /** None if the key does not exist, true if the value is completed, false if not. */
   def tryGet(k: K): F[Option[V]]
 
@@ -58,6 +65,10 @@ object DeferredMap {
         }
         def del(k: K): F[Boolean] = map.del(k)
         def get(k: K): F[V] = getDeferred(k).flatMap(_.get)
+        def getOpt(k: K): F[Option[V]] = getDeferredOpt(k).flatMap {
+          case None    => Option.empty.pure[F]
+          case Some(d) => d.get.map(_.some)
+        }
         def getDeferred(k: K): F[Deferred[F, V]] = getDeferredOpt(k).flatMap {
           case Some(d) => d.pure[F]
           case None    => Timer[F].sleep(0.seconds) >> getDeferred(k)
@@ -76,6 +87,10 @@ object DeferredMap {
         }
         def del(k: K): F[Boolean] = map.del(k)
         def get(k: K): F[V] = getDeferred(k).flatMap(_.get)
+        def getOpt(k: K): F[Option[V]] = getDeferredOpt(k).flatMap {
+          case None    => Option.empty.pure[F]
+          case Some(d) => d.get.map(_.some)
+        }
         def delIfComplete(k: K): F[Option[Boolean]] = tryGet(k).flatMap {
           case None => Option.empty.pure[F]
           case _    => map.del(k).map(_.some)
