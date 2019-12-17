@@ -35,33 +35,35 @@ object EventStateManager {
     )(implicit ev: Timer[F]) =
       for {
         mapRef <- MapRef[F].empty[K, EphemeralResource[F, EventState[F, E, A]]]
+        deferredMap <- DeferredMap[F].tryableEmpty[K, Option[EphemeralResource[F, EventState[F, E, A]]]]
       } yield new EventStateManager[F, K, E, A] {
-        def use[B](k: K)(f: EventState[F, E, A] => F[B]): F[Option[B]] =
-          mapRef.get(k).flatMap {
-            case Some(eph) =>
-              eph.use(f).flatMap {
-                case Some(result) => result.some.pure[F]
-                case None         => mapRef.del(k) >> Option.empty[B].pure[F]
-              }
-            case None =>
-              val hydrateStream = keyHydrator(k)
-              for {
-                wasHydratedRef <- Ref[F].of(false)
-                es <- EventState[F]
-                  .hydrated(initializer(k), hydrateStream.evalTap(_ => wasHydratedRef.set(true)))(eventProcessor)
-                wasHydrated <- wasHydratedRef.get
-                result <- if (wasHydrated) {
-                  //Entity does exist
-                  EphemeralResource[F].timed(es, dur).flatMap { newEph =>
-                    mapRef.add(k -> newEph) >> Concurrent[F]
-                      .start(newEph.expired >> mapRef.del(k)) >> newEph.use(f)
+        def use[B](k: K)(f: EventState[F, E, A] => F[B]): F[Option[B]] = {
+          val getEph = deferredMap.getOrAddF(k) {
+            val hydrateStream = keyHydrator(k)
+            for {
+              wasHydratedRef <- Ref[F].of(false)
+              es <- EventState[F]
+                .hydrated(initializer(k), hydrateStream.evalTap(_ => wasHydratedRef.set(true)))(eventProcessor)
+              wasHydrated <- wasHydratedRef.get
+              result <- if (wasHydrated) {
+                //Entity does exist
+                EphemeralResource[F]
+                  .timed(es, dur)
+                  .flatTap { newEph =>
+                    Concurrent[F].start(newEph.expired >> deferredMap.del(k))
                   }
-                } else {
-                  //Entity does not exist
-                  Option.empty[B].pure[F]
-                }
-              } yield result
+                  .map(_.some)
+              } else {
+                //Entity does not exist
+                Option.empty.pure[F]
+              }
+            } yield result
           }
+          getEph.flatMap {
+            case Some(eph) => eph.use(f)
+            case None      => Option.empty.pure[F]
+          }
+        }
         def add(k: K): F[Boolean] = {
           existenceCheck(k).ifM(
             {
