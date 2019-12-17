@@ -30,11 +30,16 @@ sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
     * Otherwise, it will immediately return `None`. */
   def getOpt(k: K): F[Option[V]]
 
+  /** If the given key exists, await its final value.
+    * Otherwise, provide an effectful way to obtiain that value and a deferred will be created for it once finished. */
+  def getOrElse(k: K)(f: F[V]): F[V]
+
   /** Get a `Deferred` that completes when the requested value is available. */
   def getDeferred(k: K): F[D]
 
   /** Get a `Deferred` that completes when the requested value is available if the given key currently exists. */
   def getDeferredOpt(k: K): F[Option[D]]
+
 }
 
 /** An extension of `DeferredMap` that supports checking the status of elements. */
@@ -69,6 +74,14 @@ object DeferredMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.get.map(_.some)
         }
+        def getOrElse(k: K)(f: F[V]): F[V] = Deferred[F, V].flatMap { newDeferred =>
+          map
+            .upsertOpt(k) {
+              case None    => (newDeferred, f.flatTap(newDeferred.complete))
+              case Some(d) => (d, d.get)
+            }
+            .flatten
+        }
         def getDeferred(k: K): F[Deferred[F, V]] = getDeferredOpt(k).flatMap {
           case Some(d) => d.pure[F]
           case None    => Timer[F].sleep(0.seconds) >> getDeferred(k)
@@ -90,6 +103,14 @@ object DeferredMap {
         def getOpt(k: K): F[Option[V]] = getDeferredOpt(k).flatMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.get.map(_.some)
+        }
+        def getOrElse(k: K)(f: F[V]): F[V] = Deferred.tryable[F, V].flatMap { newDeferred =>
+          map
+            .upsertOpt(k) {
+              case None    => (newDeferred, f.flatTap(newDeferred.complete))
+              case Some(d) => (d, d.get)
+            }
+            .flatten
         }
         def delIfComplete(k: K): F[Option[Boolean]] = tryGet(k).flatMap {
           case None => Option.empty.pure[F]
