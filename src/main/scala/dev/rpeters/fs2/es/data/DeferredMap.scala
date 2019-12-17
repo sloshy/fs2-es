@@ -31,8 +31,17 @@ sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
   def getOpt(k: K): F[Option[V]]
 
   /** If the given key exists, await its final value.
-    * Otherwise, provide an effectful way to obtiain that value and a deferred will be created for it once finished. */
-  def getOrElse(k: K)(f: F[V]): F[V]
+    * Otherwise, the provided deferred will be awaited and added to the map immediately. */
+  def getOrAdd(k: K)(d: D): F[V]
+
+  /** If the given key exists, await its final value.
+    * Otherwise, the provided effect will be evaluated to obtain that value.
+    * A Deferred is created internally so that the result can be awaited as it is evaluated. */
+  def getOrAddF(k: K)(f: F[V]): F[V]
+
+  /** If the given key exists, await its final value.
+    * Otherwise, the provided pure value `v` will be added to the map. */
+  def getOrAddPure(k: K)(v: V): F[V]
 
   /** Get a `Deferred` that completes when the requested value is available. */
   def getDeferred(k: K): F[D]
@@ -74,10 +83,25 @@ object DeferredMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.get.map(_.some)
         }
-        def getOrElse(k: K)(f: F[V]): F[V] = Deferred[F, V].flatMap { newDeferred =>
+        def getOrAdd(k: K)(d: Deferred[F, V]): F[V] =
+          map
+            .upsertOpt(k) {
+              case None        => (d, d.get)
+              case Some(other) => (other, other.get)
+            }
+            .flatten
+        def getOrAddF(k: K)(f: F[V]): F[V] = Deferred[F, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
               case None    => (newDeferred, f.flatTap(newDeferred.complete))
+              case Some(d) => (d, d.get)
+            }
+            .flatten
+        }
+        def getOrAddPure(k: K)(v: V): F[V] = Deferred[F, V].flatMap { newDeferred =>
+          map
+            .upsertOpt(k) {
+              case None    => (newDeferred, v.pure[F].flatTap(newDeferred.complete))
               case Some(d) => (d, d.get)
             }
             .flatten
@@ -104,10 +128,25 @@ object DeferredMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.get.map(_.some)
         }
-        def getOrElse(k: K)(f: F[V]): F[V] = Deferred.tryable[F, V].flatMap { newDeferred =>
+        def getOrAdd(k: K)(d: TryableDeferred[F, V]): F[V] =
+          map
+            .upsertOpt(k) {
+              case None        => (d, d.get)
+              case Some(other) => (other, other.get)
+            }
+            .flatten
+        def getOrAddF(k: K)(f: F[V]): F[V] = Deferred.tryable[F, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
               case None    => (newDeferred, f.flatTap(newDeferred.complete))
+              case Some(d) => (d, d.get)
+            }
+            .flatten
+        }
+        def getOrAddPure(k: K)(v: V): F[V] = Deferred.tryable[F, V].flatMap { newDeferred =>
+          map
+            .upsertOpt(k) {
+              case None    => (newDeferred, v.pure[F].flatTap(newDeferred.complete))
               case Some(d) => (d, d.get)
             }
             .flatten
