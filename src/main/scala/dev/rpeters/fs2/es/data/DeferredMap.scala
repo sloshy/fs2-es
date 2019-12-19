@@ -5,8 +5,6 @@ import cats.effect.concurrent.Deferred
 import cats.effect._
 import cats.effect.concurrent.TryableDeferred
 
-import scala.concurrent.duration._
-
 /** A map with values that may or may not be completed */
 sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
 
@@ -161,7 +159,7 @@ object DeferredMap {
           case Some(d) => d.tryGet
         }
         def checkCompleted(k: K): F[Option[Boolean]] = map.get(k).flatMap {
-          case None => None.pure[F]
+          case None => Option.empty.pure[F]
           case Some(d) =>
             d.tryGet.flatMap {
               case None    => false.some.pure[F]
@@ -169,13 +167,13 @@ object DeferredMap {
             }
         }
         def delIfComplete(k: K): F[Option[Boolean]] = checkCompleted(k).flatMap {
-          case None => Option.empty.pure[F]
-          case Some(true) => map.del(k).map(_.some)
+          case None        => Option.empty.pure[F]
+          case Some(true)  => map.del(k).map(_.some)
           case Some(false) => false.some.pure[F]
         }
         def delIfIncomplete(k: K): F[Option[Boolean]] = checkCompleted(k).flatMap {
-          case None => Option.empty.pure[F]
-          case Some(true) => false.some.pure[F]
+          case None        => Option.empty.pure[F]
+          case Some(true)  => false.some.pure[F]
           case Some(false) => map.del(k).map(_.some)
         }
       }
