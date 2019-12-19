@@ -78,12 +78,7 @@ object DeferredMap {
           map.add(k -> d) >> d.complete(v)
         }
         def del(k: K): F[Boolean] = map.del(k)
-        def get(k: K): F[V] = Deferred[F, V].flatMap { d =>
-          getOpt(k).flatMap {
-            case None    => getOrAdd(k)(d)
-            case Some(v) => v.pure[F]
-          }
-        }
+        def get(k: K): F[V] = Deferred[F, V].flatMap(getOrAdd(k))
         def getOpt(k: K): F[Option[V]] = getDeferredOpt(k).flatMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.get.map(_.some)
