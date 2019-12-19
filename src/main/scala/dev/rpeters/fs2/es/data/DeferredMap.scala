@@ -46,6 +46,9 @@ sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
   /** Get a `Deferred` that completes when the requested value is available. */
   def getDeferred(k: K): F[D]
 
+  /** Like `getDeferred`, but if the given key does not exist the provided `Deferred` is added/returned. */
+  def getDeferredOrAdd(k: K)(d: D): F[D]
+
   /** Get a `Deferred` that completes when the requested value is available if the given key currently exists. */
   def getDeferredOpt(k: K): F[Option[D]]
 
@@ -83,13 +86,7 @@ object DeferredMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.get.map(_.some)
         }
-        def getOrAdd(k: K)(d: Deferred[F, V]): F[V] =
-          map
-            .upsertOpt(k) {
-              case None        => (d, d.get)
-              case Some(other) => (other, other.get)
-            }
-            .flatten
+        def getOrAdd(k: K)(d: Deferred[F, V]): F[V] = getDeferredOrAdd(k)(d).flatMap(_.get)
         def getOrAddF(k: K)(f: F[V]): F[V] = Deferred[F, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
@@ -106,10 +103,13 @@ object DeferredMap {
             }
             .flatten
         }
-        def getDeferred(k: K): F[Deferred[F, V]] = getDeferredOpt(k).flatMap {
-          case Some(d) => d.pure[F]
-          case None    => Timer[F].sleep(0.seconds) >> getDeferred(k)
-        }
+        def getDeferred(k: K): F[Deferred[F, V]] = Deferred[F, V].flatMap(getDeferredOrAdd(k))
+        def getDeferredOrAdd(k: K)(d: Deferred[F, V]): F[Deferred[F, V]] =
+          map
+            .upsertOpt(k) {
+              case None        => (d, d)
+              case Some(other) => (other, other)
+            }
         def getDeferredOpt(k: K): F[Option[Deferred[F, V]]] = map.get(k)
       }
 
@@ -123,18 +123,12 @@ object DeferredMap {
           map.add(k -> d) >> d.complete(v)
         }
         def del(k: K): F[Boolean] = map.del(k)
-        def get(k: K): F[V] = getDeferred(k).flatMap(_.get)
+        def get(k: K): F[V] = Deferred.tryable[F, V].flatMap(getOrAdd(k))
         def getOpt(k: K): F[Option[V]] = getDeferredOpt(k).flatMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.get.map(_.some)
         }
-        def getOrAdd(k: K)(d: TryableDeferred[F, V]): F[V] =
-          map
-            .upsertOpt(k) {
-              case None        => (d, d.get)
-              case Some(other) => (other, other.get)
-            }
-            .flatten
+        def getOrAdd(k: K)(d: TryableDeferred[F, V]): F[V] = getDeferredOrAdd(k)(d).flatMap(_.get)
         def getOrAddF(k: K)(f: F[V]): F[V] = Deferred.tryable[F, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
@@ -151,20 +145,23 @@ object DeferredMap {
             }
             .flatten
         }
-        def delIfComplete(k: K): F[Option[Boolean]] = tryGet(k).flatMap {
-          case None => Option.empty.pure[F]
-          case _    => map.del(k).map(_.some)
-        }
-        def delIfIncomplete(k: K): F[Option[Boolean]] = delIfComplete(k).map(_.map(bool => !bool))
-        def getDeferred(k: K): F[TryableDeferred[F, V]] = getDeferredOpt(k).flatMap {
-          case Some(d) => d.pure[F]
-          case None    => Timer[F].sleep(0.seconds) >> getDeferred(k)
-        }
+        def getDeferred(k: K): F[TryableDeferred[F, V]] = Deferred.tryable[F, V].flatMap(getDeferredOrAdd(k))
+        def getDeferredOrAdd(k: K)(d: TryableDeferred[F, V]): F[TryableDeferred[F, V]] =
+          map
+            .upsertOpt(k) {
+              case None        => (d, d)
+              case Some(other) => (other, other)
+            }
         def getDeferredOpt(k: K): F[Option[TryableDeferred[F, V]]] = map.get(k)
         def tryGet(k: K): F[Option[V]] = map.get(k).flatMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.tryGet
         }
+        def delIfComplete(k: K): F[Option[Boolean]] = tryGet(k).flatMap {
+          case None => Option.empty.pure[F]
+          case _    => map.del(k).map(_.some)
+        }
+        def delIfIncomplete(k: K): F[Option[Boolean]] = delIfComplete(k).map(_.map(bool => !bool))
       }
 
     /** Construct an empty DeferredMap */
