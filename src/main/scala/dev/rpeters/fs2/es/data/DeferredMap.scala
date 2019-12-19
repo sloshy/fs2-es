@@ -57,8 +57,11 @@ sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
 /** An extension of `DeferredMap` that supports checking the status of elements. */
 sealed trait TryableDeferredMap[F[_], K, V] extends DeferredMap[F, K, V, TryableDeferred[F, V]] {
 
-  /** None if the key does not exist, true if the value is completed, false if not. */
+  /** Returns the current value only if the key exists and it has been completed */
   def tryGet(k: K): F[Option[V]]
+
+  /** `None` if the key does not currently exist, `Some(true)` if completed, `Some(false)` if incomplete. */
+  def checkCompleted(k: K): F[Option[Boolean]]
 
   /** Remove a value from this map only if it has been completed.
     * Result is whether the operation is successful. */
@@ -157,11 +160,24 @@ object DeferredMap {
           case None    => Option.empty.pure[F]
           case Some(d) => d.tryGet
         }
-        def delIfComplete(k: K): F[Option[Boolean]] = tryGet(k).flatMap {
-          case None => Option.empty.pure[F]
-          case _    => map.del(k).map(_.some)
+        def checkCompleted(k: K): F[Option[Boolean]] = map.get(k).flatMap {
+          case None => None.pure[F]
+          case Some(d) =>
+            d.tryGet.flatMap {
+              case None    => false.some.pure[F]
+              case Some(_) => true.some.pure[F]
+            }
         }
-        def delIfIncomplete(k: K): F[Option[Boolean]] = delIfComplete(k).map(_.map(bool => !bool))
+        def delIfComplete(k: K): F[Option[Boolean]] = checkCompleted(k).flatMap {
+          case None => Option.empty.pure[F]
+          case Some(true) => map.del(k).map(_.some)
+          case Some(false) => false.some.pure[F]
+        }
+        def delIfIncomplete(k: K): F[Option[Boolean]] = checkCompleted(k).flatMap {
+          case None => Option.empty.pure[F]
+          case Some(true) => false.some.pure[F]
+          case Some(false) => map.del(k).map(_.some)
+        }
       }
 
     /** Construct an empty DeferredMap */
