@@ -8,7 +8,8 @@ import cats.effect.concurrent.Ref
 
 import data._
 
-sealed trait EventStateManager[F[_], K, E, A] {
+/** Caches EventState values by key, allowing you to use event-sourced state repeatedly. */
+sealed trait EventStateCache[F[_], K, E, A] {
 
   /** Access some event state by key if it exists. */
   def use[B](k: K)(f: EventState[F, E, A] => F[B]): F[Option[B]]
@@ -24,9 +25,9 @@ sealed trait EventStateManager[F[_], K, E, A] {
   def hookupKey(k: K): Pipe[F, E, (K, Option[A])] = _.map(e => k -> e).through(hookup)
 }
 
-object EventStateManager {
+object EventStateCache {
 
-  final class EventStateManagerPartiallyApplied[F[_]: Concurrent]() {
+  final class EventStateCachePartiallyApplied[F[_]: Concurrent]() {
 
     /** Rehydrates entities by key as-needed. */
     def rehydrating[K, E, A](initializer: K => A)(keyHydrator: K => Stream[F, E])(eventProcessor: (E, A) => A)(
@@ -36,7 +37,7 @@ object EventStateManager {
       for {
         mapRef <- MapRef[F].empty[K, EphemeralResource[F, EventState[F, E, A]]]
         deferredMap <- DeferredMap[F].tryableEmpty[K, Option[EphemeralResource[F, EventState[F, E, A]]]]
-      } yield new EventStateManager[F, K, E, A] {
+      } yield new EventStateCache[F, K, E, A] {
         def use[B](k: K)(f: EventState[F, E, A] => F[B]): F[Option[B]] = {
           val getEph = deferredMap.getOrAddF(k) {
             val hydrateStream = keyHydrator(k)
@@ -88,5 +89,5 @@ object EventStateManager {
         }
       }
   }
-  def apply[F[_]: Concurrent] = new EventStateManagerPartiallyApplied[F]
+  def apply[F[_]: Concurrent] = new EventStateCachePartiallyApplied[F]
 }

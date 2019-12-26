@@ -5,13 +5,13 @@ import fs2.Stream
 import scala.concurrent.duration._
 import scala.concurrent.Await
 
-class EventStateManagerSpec extends BaseTestSpec {
-  "EventStateManager" - {
+class EventStateCacheSpec extends BaseTestSpec {
+  "EventStateCache" - {
     "Rehydrating" - {
       "Should reload state after the TTL elapses" in {
-        val manager =
-          EventStateManager[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
-        val program = manager.flatMap { m =>
+        val cache =
+          EventStateCache[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
+        val program = cache.flatMap { m =>
           for {
             first <- m.use("test")(_.doNext(1))
             _ <- timer.sleep(2.seconds)
@@ -29,12 +29,12 @@ class EventStateManagerSpec extends BaseTestSpec {
       }
     }
     "Should not add state that already exists in-memory" in {
-      // Manager is configured such that the existence check is always false, forcing it to rely on a memory check.
-      val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream(1, 2, 3))(_ + _)(
+      // Cache is configured such that the existence check is always false, forcing it to rely on a memory check.
+      val cache = EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream(1, 2, 3))(_ + _)(
         5.seconds,
         _ => IO.pure(false)
       )
-      val program = manager.flatMap { m =>
+      val program = cache.flatMap { m =>
         for {
           added <- m.add("test")
           notAdded <- m.add("test")
@@ -47,12 +47,12 @@ class EventStateManagerSpec extends BaseTestSpec {
       notAdded shouldBe false
     }
     "Should not add state that already exists in the event log" in {
-      // Manager is configured to have an existence check that always returns true.
-      val manager = EventStateManager[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
+      // Cache is configured to have an existence check that always returns true.
+      val cache = EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
         5.seconds,
         k => if (k == "test") IO.pure(false) else IO.pure(true)
       )
-      val program = manager.flatMap { m =>
+      val program = cache.flatMap { m =>
         for {
           added <- m.add("test")
           notAdded <- m.add("bad-test")

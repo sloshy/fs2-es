@@ -96,14 +96,14 @@ There is also a variant `EphemeralResource[F].uses` that lets you specify a maxi
 
 n.b. Despite the name and `use` method semantics, this type has nothing in common with `cats.effect.Resource`.
 
-## EventStateManager
-Now that we have abstractions for both event-sourced state and timed lifetime management, we can put the two together and automatically manage the lifetimes of `EventState` with `EventStateManager`.
+## EventStateCache
+Now that we have abstractions for both event-sourced state and timed lifetime management, we can put the two together and automatically manage the lifetimes of `EventState` with `EventStateCache`.
 
-`EventStateManager` acts as a repository interface for generic event-sourced state.
+`EventStateCache` acts as a repository interface for generic event-sourced state.
 It works similarly to a concurrent `Map` with each one of your `EventState`s held behind a key.
-What makes `EventStateManager` special is that it understands how to create new states, read them from your event log, and manage their lifetimes for efficiency.
+What makes `EventStateCache` special is that it understands how to create new states, read them from your event log, and manage their lifetimes for efficiency.
 
-To create an `EventStateManager`, you need several functions and values defined that you plug into it.
+To create an `EventStateCache`, you need several functions and values defined that you plug into it.
 Here are all of the parameters necessary, with description:
 ```scala mdoc:silent
 import cats.Applicative
@@ -137,11 +137,11 @@ def existenceCheck[F[_]: Applicative](k: String): F[Boolean] = if (k == "Existin
 val ttl = 2.minutes
 ```
 
-Finally, we can create an `EventStateManager` as follows:
+Finally, we can create an `EventStateCache` as follows:
 ```scala mdoc
-import dev.rpeters.fs2.es.EventStateManager
+import dev.rpeters.fs2.es.EventStateCache
 
-val managerF = EventStateManager[IO].rehydrating(initializer)(keyHydrator[IO])(eventProcessor)(ttl, existenceCheck[IO])
+val cacheF = EventStateCache[IO].rehydrating(initializer)(keyHydrator[IO])(eventProcessor)(ttl, existenceCheck[IO])
 ```
 
 Lets use this as a building block to write a basic event-sourced program:
@@ -152,19 +152,19 @@ case class UserCreatedEvent(name: String)
 
 val usersToCreate: Stream[Pure, UserCreatedEvent] = Stream("FirstUser", "SecondUser", "ThirdUser").map(UserCreatedEvent)
 
-val fullProgram = managerF.flatMap { manager =>
+val fullProgram = cacheF.flatMap { cache =>
   
   // Because our existence check will fail for these, it should initialize these three with 0 points.
-  val initializeNewUsers = usersToCreate.evalTap(u => manager.add(u.name)).compile.drain
+  val initializeNewUsers = usersToCreate.evalTap(u => cache.add(u.name)).compile.drain
   
-  // Our hydrate function will be used when we call `.use` on our manager.
-  val getExistingUser = manager.use("ExistingUser")(es => es.get)
+  // Our hydrate function will be used when we call `.use` on our cache.
+  val getExistingUser = cache.use("ExistingUser")(es => es.get)
 
   // We'll create a stream that gives all users 5 points.
   // `hookup` is a `Pipe` that passes our events through to the underlying `EventState` by-key.
   // Also see: `hookupKey` for a key-specific pipe.
   val pointsByKey = usersToCreate.map(k => k.name -> 5)
-  val addToEachUser = pointsByKey.through(manager.hookup).compile.toList
+  val addToEachUser = pointsByKey.through(cache.hookup).compile.toList
 
   // Gives us the result of loading in an existing user as well as the result of applying events to all of our new users.
   for {
@@ -185,15 +185,23 @@ While not shown here, you can try it yourself or look in the library tests for e
 Not directly part of the API but made public for the current release anyway, `MapRef` is used internally as a small wrapper around an immutable `Map` inside of a `cats.effect.concurrent.Ref`.
 Feel free to use it in your own projects, or as part of your own codebase, if you find it necessary.
 
+### Addendum: DeferredMap
+Built on top of MapRef, this represents a map of awaitable values.
+That is to say, given some `MapRef[F, K, V]`, its equivalent `DeferredMap` has every `V` wrapped in a `cats.effect.concurrent.Deferred` internally.
+What this means is that it is essentially a keyed `Deferred` where each key is potentially a new value.
+This is used internally by `EventStateCache` so that if you get multiple requests for rehydrating state, you will run the rehydrating function at max once.
+`DeferredMap` has a large host of useful methods that will allow you to build concurrent programs that await values by key.
+Feel free to use it in your own projects, and any bug reports are much appreciated here.
+
 ## What to use?
 Now that we've gone through the library at large, there remains the question of exactly how much of this you need.
 If you are doing a small event-sourced program and maybe only have a few, finite sources of event-sourced state, you can get by with only `EventState` just fine.
 If you have a number that you are quite confident should fit in memory, but might be dynamic for other reasons, make a `MapRef[K, EventState]` or use some other pattern/structure to organize your state.
 If you need custom lifetime management built on top of that, feel free to write your own structures using `EphemeralResource` as well on top of that, or on the side as-needed.
-Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateManager` should give you everything you need at once.
+Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateCache` should give you everything you need at once.
 It not only handles retrieving your state from your event log as you define it, but it also makes sure that you do not waste precious time or resources re-running the same event log queries by caching state in-memory.
 
-I wrote this library with composition in mind, so if you do not need "the full package" you should very easily be able to build what you need with each of the smaller parts that make up one `EventStateManager`.
+I wrote this library with composition in mind, so if you do not need "the full package" you should very easily be able to build what you need with each of the smaller parts that make up one `EventStateCache`.
 The last thing I want is to say "this is how you write an event-sourced application using FS2", as that kind of cargo-culting will only lead to poor quality software.
 So try it out, see what works for you, and if you were able to build something that fit your use cases better with it, be sure to let me know!
 
