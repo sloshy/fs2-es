@@ -3,7 +3,7 @@ Event sourcing is an age-old concept about how you model state in your applicati
 To put it simply, all state is modeled as a left fold on a linear sequence of "events".
 For example, here is an extremely basic "event-sourced" program using FS2:
 
-```scala mdoc:reset-class
+```scala mdoc
 import cats.implicits._
 import fs2.{Pipe, Pure, Stream}
 
