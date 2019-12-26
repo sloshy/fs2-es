@@ -4,17 +4,21 @@ import cats.implicits._
 import cats.effect.concurrent.Deferred
 import cats.effect._
 import cats.effect.concurrent.TryableDeferred
+import cats.Applicative
 
 /** A map with values that may or may not be completed */
 sealed trait DeferredMap[F[_], K, V, D <: Deferred[F, V]] {
 
-  /** Add a value to this map that may be completed later. */
+  /** Add a value to this map that may be completed later.
+    * If this key is already being awaited by another Deferred, it will attempt to complete the value silently. */
   def add(k: K)(d: D): F[Unit]
 
-  /** Add a value to this map once a given `F` completes. */
+  /** Add a value to this map once a given `F` completes.
+    * If this key is already being awaited, it will attempt to complete the value silently. */
   def addF(k: K)(f: F[V]): F[Unit]
 
-  /** Add a pure value to this map that is pre-completed. */
+  /** Add a pure value to this map that is pre-completed.
+    * If this key is being awaited, it will attempt to complete the deferred upon insert silently. */
   def addPure(k: K)(v: V): F[Unit]
 
   /** Remove a value from this map. Result is whether or not the key was valid. */
@@ -74,12 +78,28 @@ object DeferredMap {
   final class DeferredMapPartiallyApplied[F[_]: Concurrent: Timer] {
     private def construct[K, V](map: MapRef[F, K, Deferred[F, V]]) =
       new DeferredMap[F, K, V, Deferred[F, V]] {
-        def add(k: K)(d: Deferred[F, V]): F[Unit] = map.add(k -> d)
+        def add(k: K)(d: Deferred[F, V]): F[Unit] =
+          map
+            .upsertOpt(k) {
+              case Some(existing) => existing -> d.get.flatMap(existing.complete).attempt.void
+              case None           => d -> Applicative[F].unit
+            }
+            .flatten
         def addF(k: K)(f: F[V]): F[Unit] = Deferred[F, V].flatMap { d =>
-          map.add(k -> d) >> f.flatMap(d.complete)
+          map
+            .upsertOpt(k) {
+              case Some(existing) => existing -> f.flatMap(existing.complete).attempt.void
+              case None           => d -> f.flatMap(d.complete).attempt.void
+            }
+            .flatten
         }
         def addPure(k: K)(v: V): F[Unit] = Deferred[F, V].flatMap { d =>
-          map.add(k -> d) >> d.complete(v)
+          map
+            .upsertOpt(k) {
+              case Some(existing) => existing -> existing.complete(v).attempt.void
+              case None           => d -> d.complete(v).attempt.void
+            }
+            .flatten
         }
         def del(k: K): F[Boolean] = map.del(k)
         def get(k: K): F[V] = Deferred[F, V].flatMap(getOrAdd(k))
@@ -116,12 +136,28 @@ object DeferredMap {
 
     private def constructTryable[K, V](map: MapRef[F, K, TryableDeferred[F, V]]) =
       new TryableDeferredMap[F, K, V] {
-        def add(k: K)(d: TryableDeferred[F, V]): F[Unit] = map.add(k -> d)
+        def add(k: K)(d: TryableDeferred[F, V]): F[Unit] =
+          map
+            .upsertOpt(k) {
+              case Some(existing) => existing -> d.get.flatMap(existing.complete).attempt.void
+              case None           => d -> Applicative[F].unit
+            }
+            .flatten
         def addF(k: K)(f: F[V]): F[Unit] = Deferred.tryable[F, V].flatMap { d =>
-          map.add(k -> d) >> f.flatMap(d.complete)
+          map
+            .upsertOpt(k) {
+              case Some(existing) => existing -> f.flatMap(existing.complete).attempt.void
+              case None           => d -> f.flatMap(d.complete).attempt.void
+            }
+            .flatten
         }
-        def addPure(k: K)(v: V): F[Unit] = Deferred.tryable[F, V].flatMap { d =>
-          map.add(k -> d) >> d.complete(v)
+        def addPure(k: K)(v: V): F[Unit] = Deferred.tryable[F, V] flatMap { d =>
+          map
+            .upsertOpt(k) {
+              case Some(existing) => existing -> existing.complete(v).attempt.void
+              case None           => d -> d.complete(v).attempt.void
+            }
+            .flatten
         }
         def del(k: K): F[Boolean] = map.del(k)
         def get(k: K): F[V] = Deferred.tryable[F, V].flatMap(getOrAdd(k))
