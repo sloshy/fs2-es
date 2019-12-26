@@ -75,7 +75,7 @@ This abstraction uses an internal timer that resets after each use so that lifet
 
 Here is a simple example:
 ```scala mdoc
-import dev.rpeters.fs2.es.EphemeralResource
+import dev.rpeters.fs2.es.data.EphemeralResource
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 

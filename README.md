@@ -8,13 +8,12 @@ The library is polymorphic using Cats Effect, so you can use it with any effect 
 
 To use, add the library to your `build.sbt` like so:
 ```
-libraryDependencies += "dev.rpeters" %% "fs2-es" % "0.1.1"
+libraryDependencies += "dev.rpeters" %% "fs2-es" % "0.2"
 ```
 
 Currently Scala 2.12 and 2.13 are both supported.
 
-## Event-Sourcing - Brief Introduction
-
+# Introduction
 Event sourcing is an age-old concept about how you model state in your applications.
 To put it simply, all state is modeled as a left fold on a linear sequence of "events".
 For example, here is an extremely basic "event-sourced" program using FS2:
@@ -46,7 +45,7 @@ You can very easily build your own event log just by serializing events and putt
 This library chooses to focus on some of the more easily composable parts of event sourcing.
 To that end, it comes with a few useful utilities you should get to know:
 
-### EventState
+## EventState
 
 An `EventState` is a common abstraction to help you manage best practices for dealing with event-sourced state.
 It can only be created with an initial value, and optionally a stream of events to "rehydrate" it by folding over them, just like in the opening example.
@@ -62,27 +61,27 @@ val initialEventState = for {
 } yield result
 // initialEventState: IO[Int] = Bind(
 //   Map(
-//     Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@140d56cb),
-//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$6579/491444192@188f8b37,
+//     Delay(cats.effect.concurrent.Ref$$$Lambda$8776/392235525@1beb98fe),
+//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$8777/126945862@3674ed33,
 //     0
 //   ),
 //   <function1>
 // )
 
 initialEventState.unsafeRunSync()
-// res1: Int = 2
+// res0: Int = 2
 
 val hydratedEventState = EventState[IO].hydrated[Int, Int](1, Stream.emit(1))(_ + _).flatMap(es => es.get)
 // hydratedEventState: IO[Int] = Bind(
 //   Bind(
-//     Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@48e7a0b6),
-//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$6582/304646530@5457d137
+//     Delay(cats.effect.concurrent.Ref$$$Lambda$8776/392235525@46ac050d),
+//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$8780/1085231442@5669b5f2
 //   ),
 //   <function1>
 // )
 
 hydratedEventState.unsafeRunSync()
-// res2: Int = 2
+// res1: Int = 2
 ```
 
 The only way to change a value in an `EventState` is to supply it manually to `doNext` or otherwise have it part of the initial hydrating stream.
@@ -96,15 +95,15 @@ val hookedUpStream = EventState[IO].initial[Int, Int](1)(_ + _).flatMap { es =>
 }
 // hookedUpStream: IO[List[Int]] = Bind(
 //   Map(
-//     Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@88ae873),
-//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$6579/491444192@62d96b6,
+//     Delay(cats.effect.concurrent.Ref$$$Lambda$8776/392235525@5cf54aae),
+//     dev.rpeters.fs2.es.EventState$EventStatePartiallyApplied$$Lambda$8777/126945862@642a8593,
 //     0
 //   ),
 //   <function1>
 // )
 
 hookedUpStream.unsafeRunSync()
-// res3: List[Int] = List(2, 3, 4)
+// res2: List[Int] = List(2, 3, 4)
 ```
 
 When using `hookup`, if you only have a single event stream going into your `EventState` then the resulting stream is guaranteed to have all possible state changes.
@@ -112,23 +111,21 @@ If you have more relaxed constraints, look into using `SignallingEventState` ins
 It has methods `continuous` and `discrete` that mirror those on `fs2.concurrent.SignallingRef`.
 These will let you get a continuous stream of the current state or a stream of changes as-detected, but neither is guaranteed to give you all changes in state.
 
-### EphemeralResource
-
+## EphemeralResource
 Not directly related to events, but a useful primitive nonetheless, an `EphemeralResource` is a concurrently available value that expires after a certain period of time.
 When using event sourcing in particular, it can be helpful to "cache" event state in memory so that your application is not continuously reading from the event log every time it needs the latest state for something.
 This abstraction uses an internal timer that resets after each use so that lifetime management of your state is automated.
 
 Here is a simple example:
-
 ```scala
-import dev.rpeters.fs2.es.EphemeralResource
+import dev.rpeters.fs2.es.data.EphemeralResource
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
 implicit val cs = IO.contextShift(global)
-// cs: ContextShift[IO] = cats.effect.internals.IOContextShift@4fb67fa4
+// cs: ContextShift[IO] = cats.effect.internals.IOContextShift@6a49ce3
 implicit val timer = IO.timer(global)
-// timer: Timer[IO] = cats.effect.internals.IOTimer@2d8e5a84
+// timer: Timer[IO] = cats.effect.internals.IOTimer@3bbdb1d0
 
 val timedResource = for {
   res <- EphemeralResource[IO].timed(1, 2.seconds)
@@ -140,35 +137,33 @@ val timedResource = for {
 //   Bind(
 //     Bind(
 //       Bind(
-//         Delay(cats.effect.concurrent.Deferred$$$Lambda$6610/1886818838@619336be),
-//         io.chrisdavenport.agitation.Agitation$$$Lambda$6611/1466410374@6f1957e2
+//         Delay(cats.effect.concurrent.Deferred$$$Lambda$8808/126161124@1b409505),
+//         io.chrisdavenport.agitation.Agitation$$$Lambda$8809/982572508@5d27cfcd
 //       ),
-//       cats.FlatMap$$Lambda$6613/268246130@13ae4efa
+//       cats.FlatMap$$Lambda$8811/1635487103@7f46030e
 //     ),
-//     dev.rpeters.fs2.es.EphemeralResource$EphemeralResourcePartiallyApplied$$Lambda$6614/199214849@4cab7c71
+//     dev.rpeters.fs2.es.data.EphemeralResource$EphemeralResourcePartiallyApplied$$Lambda$8812/905127902@29a30e07
 //   ),
 //   <function1>
 // )
 
 timedResource.unsafeRunSync
-// res4: (Option[Int], Option[Int]) = (Some(2), None)
+// res3: (Option[Int], Option[Int]) = (Some(2), None)
 ```
 
 There is also a variant `EphemeralResource[F].uses` that lets you specify a maximum number of uses, but I personally find the timed variant to be more practical for event sourcing.
 
 n.b. Despite the name and `use` method semantics, this type has nothing in common with `cats.effect.Resource`.
 
-### EventStateManager
+## EventStateCache
+Now that we have abstractions for both event-sourced state and timed lifetime management, we can put the two together and automatically manage the lifetimes of `EventState` with `EventStateCache`.
 
-Now that we have abstractions for both event-sourced state and timed lifetime management, we can put the two together and automatically manage the lifetimes of `EventState` with `EventStateManager`.
-
-`EventStateManager` acts as a repository interface for generic event-sourced state.
+`EventStateCache` acts as a repository interface for generic event-sourced state.
 It works similarly to a concurrent `Map` with each one of your `EventState`s held behind a key.
-What makes `EventStateManager` special is that it understands how to create new states, read them from your event log, and manage their lifetimes for efficiency.
+What makes `EventStateCache` special is that it understands how to create new states, read them from your event log, and manage their lifetimes for efficiency.
 
-To create an `EventStateManager`, you need several functions and values defined that you plug into it.
+To create an `EventStateCache`, you need several functions and values defined that you plug into it.
 Here are all of the parameters necessary, with description:
-
 ```scala
 import cats.Applicative
 
@@ -201,16 +196,18 @@ def existenceCheck[F[_]: Applicative](k: String): F[Boolean] = if (k == "Existin
 val ttl = 2.minutes
 ```
 
-Finally, we can create an `EventStateManager` as follows:
-
+Finally, we can create an `EventStateCache` as follows:
 ```scala
-import dev.rpeters.fs2.es.EventStateManager
+import dev.rpeters.fs2.es.EventStateCache
 
-val managerF = EventStateManager[IO].rehydrating(initializer)(keyHydrator[IO])(eventProcessor)(ttl, existenceCheck[IO])
-// managerF: IO[AnyRef with EventStateManager[IO, String, Int, User]] = Map(
-//   Delay(cats.effect.concurrent.Ref$$$Lambda$6578/1718049636@11f672a7),
-//   scala.Function1$$Lambda$6676/1918448754@70ce37fd,
-//   1
+val cacheF = EventStateCache[IO].rehydrating(initializer)(keyHydrator[IO])(eventProcessor)(ttl, existenceCheck[IO])
+// cacheF: IO[AnyRef with EventStateCache[IO, String, Int, User]] = Bind(
+//   Map(
+//     Delay(cats.effect.concurrent.Ref$$$Lambda$8776/392235525@55eeb63b),
+//     dev.rpeters.fs2.es.data.MapRef$MapRefPartiallyApplied$$Lambda$8872/2022707004@1aff91fb,
+//     0
+//   ),
+//   dev.rpeters.fs2.es.EventStateCache$EventStateCachePartiallyApplied$$Lambda$8873/1174270933@2b9d7795
 // )
 ```
 
@@ -222,19 +219,19 @@ case class UserCreatedEvent(name: String)
 
 val usersToCreate: Stream[Pure, UserCreatedEvent] = Stream("FirstUser", "SecondUser", "ThirdUser").map(UserCreatedEvent)
 
-val fullProgram = managerF.flatMap { manager =>
+val fullProgram = cacheF.flatMap { cache =>
   
   // Because our existence check will fail for these, it should initialize these three with 0 points.
-  val initializeNewUsers = usersToCreate.evalTap(u => manager.add(u.name)).compile.drain
+  val initializeNewUsers = usersToCreate.evalTap(u => cache.add(u.name)).compile.drain
   
-  // Our hydrate function will be used when we call `.use` on our manager.
-  val getExistingUser = manager.use("ExistingUser")(es => es.get)
+  // Our hydrate function will be used when we call `.use` on our cache.
+  val getExistingUser = cache.use("ExistingUser")(es => es.get)
 
   // We'll create a stream that gives all users 5 points.
   // `hookup` is a `Pipe` that passes our events through to the underlying `EventState` by-key.
   // Also see: `hookupKey` for a key-specific pipe.
   val pointsByKey = usersToCreate.map(k => k.name -> 5)
-  val addToEachUser = pointsByKey.through(manager.hookup).compile.toList
+  val addToEachUser = pointsByKey.through(cache.hookup).compile.toList
 
   // Gives us the result of loading in an existing user as well as the result of applying events to all of our new users.
   for {
@@ -244,37 +241,38 @@ val fullProgram = managerF.flatMap { manager =>
   } yield (existing, list)
 }
 ```
-
 ```scala
 fullProgram.unsafeRunSync()
-// res5: (Option[User], List[(String, Option[User])]) = (
+// res4: (Option[User], List[(String, Option[User])]) = (
 //   Some(User("ExistingUser", 3)),
-//   List(
-//     ("FirstUser", Some(User("FirstUser", 5))),
-//     ("SecondUser", Some(User("SecondUser", 5))),
-//     ("ThirdUser", Some(User("ThirdUser", 5)))
-//   )
+//   List(("FirstUser", None), ("SecondUser", None), ("ThirdUser", None))
 // )
 ```
 
 As you would expect, these states in memory are only kept for the specified duration of 2 minutes.
 While not shown here, you can try it yourself or look in the library tests for examples.
 
-#### Addendum: MapRef
-
+### Addendum: MapRef
 Not directly part of the API but made public for the current release anyway, `MapRef` is used internally as a small wrapper around an immutable `Map` inside of a `cats.effect.concurrent.Ref`.
 Feel free to use it in your own projects, or as part of your own codebase, if you find it necessary.
 
-## What to use?
+### Addendum: DeferredMap
+Built on top of MapRef, this represents a map of awaitable values.
+That is to say, given some `MapRef[F, K, V]`, its equivalent `DeferredMap` has every `V` wrapped in a `cats.effect.concurrent.Deferred` internally.
+What this means is that it is essentially a keyed `Deferred` where each key is potentially a new value.
+This is used internally by `EventStateCache` so that if you get multiple requests for rehydrating state, you will run the rehydrating function at max once.
+`DeferredMap` has a large host of useful methods that will allow you to build concurrent programs that await values by key.
+Feel free to use it in your own projects, and any bug reports are much appreciated here.
 
+## What to use?
 Now that we've gone through the library at large, there remains the question of exactly how much of this you need.
 If you are doing a small event-sourced program and maybe only have a few, finite sources of event-sourced state, you can get by with only `EventState` just fine.
 If you have a number that you are quite confident should fit in memory, but might be dynamic for other reasons, make a `MapRef[K, EventState]` or use some other pattern/structure to organize your state.
 If you need custom lifetime management built on top of that, feel free to write your own structures using `EphemeralResource` as well on top of that, or on the side as-needed.
-Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateManager` should give you everything you need at once.
+Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateCache` should give you everything you need at once.
 It not only handles retrieving your state from your event log as you define it, but it also makes sure that you do not waste precious time or resources re-running the same event log queries by caching state in-memory.
 
-I wrote this library with composition in mind, so if you do not need "the full package" you should very easily be able to build what you need with each of the smaller parts that make up one `EventStateManager`.
+I wrote this library with composition in mind, so if you do not need "the full package" you should very easily be able to build what you need with each of the smaller parts that make up one `EventStateCache`.
 The last thing I want is to say "this is how you write an event-sourced application using FS2", as that kind of cargo-culting will only lead to poor quality software.
 So try it out, see what works for you, and if you were able to build something that fit your use cases better with it, be sure to let me know!
 

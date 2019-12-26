@@ -18,7 +18,6 @@ lazy val root = (project in file("."))
 lazy val docs = (project in file("fs2-es-docs"))
   .settings(
     scalacOptions ~= filterConsoleScalacOptions,
-    scalaVersion := "2.13.0", //Fix for a weird bug going on
     publish / skip := true
   )
   .dependsOn(root)
