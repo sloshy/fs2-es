@@ -6,7 +6,7 @@ lazy val root = (project in file("."))
     name := "fs2-es",
     organization := "dev.rpeters",
     libraryDependencies ++= Seq(
-      "co.fs2" %% "fs2-io" % fs2V,
+      "co.fs2" %% "fs2-core" % fs2V,
       "io.chrisdavenport" %% "agitation" % "0.2.0-M1",
       "org.typelevel" %% "cats-effect-laws" % "2.0.0" % Test,
       "org.scalatestplus" %% "scalacheck-1-14" % "3.1.0.0" % Test
