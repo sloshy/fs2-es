@@ -12,7 +12,9 @@ lazy val root = (project in file("."))
       "org.scalatestplus" %% "scalacheck-1-14" % "3.1.0.1" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
-    crossScalaVersions := Seq("2.12.10", "2.13.1")
+    crossScalaVersions := Seq("2.12.10", "2.13.1"),
+    javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
+    scalacOptions := Seq("-target:jvm-1.8")
   )
 
 lazy val docs = (project in file("fs2-es-docs"))
