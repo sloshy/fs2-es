@@ -35,7 +35,6 @@ object EventStateCache {
         existenceCheck: K => F[Boolean] = (k: K) => keyHydrator(k).take(1).compile.last.map(_.isDefined)
     )(implicit ev: Timer[F]) =
       for {
-        mapRef <- MapRef[F].empty[K, EphemeralResource[F, EventState[F, E, A]]]
         deferredMap <- DeferredMap[F].tryableEmpty[K, Option[EphemeralResource[F, EventState[F, E, A]]]]
       } yield new EventStateCache[F, K, E, A] {
         def use[B](k: K)(f: EventState[F, E, A] => F[B]): F[Option[B]] = {
@@ -62,7 +61,7 @@ object EventStateCache {
           }
           getEph.flatMap {
             case Some(eph) => eph.use(f)
-            case None      => Option.empty.pure[F]
+            case None      => Option.empty.pure[F].flatTap(_ => deferredMap.del(k))
           }
         }
         def add(k: K): F[Boolean] = {
@@ -70,14 +69,14 @@ object EventStateCache {
             {
               false.pure[F]
             }, {
-              mapRef.get(k).flatMap {
-                case Some(_) =>
+              deferredMap.tryGet(k).flatMap {
+                case Some(Some(_)) =>
                   false.pure[F]
-                case None =>
+                case _ =>
                   for {
                     es <- EventState[F].initial[E, A](initializer(k))(eventProcessor)
                     eph <- EphemeralResource[F].timed(es, dur)
-                    _ <- mapRef.add(k -> eph)
+                    _ <- deferredMap.addPure(k)(eph.some)
                   } yield true
               }
 
