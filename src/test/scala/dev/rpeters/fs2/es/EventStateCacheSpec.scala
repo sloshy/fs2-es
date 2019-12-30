@@ -11,13 +11,13 @@ class EventStateCacheSpec extends BaseTestSpec {
       "should reload state after the TTL elapses" in {
         val cache =
           EventStateCache[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
-        val program = cache.flatMap { m =>
+        val program = cache.flatMap { c =>
           for {
-            first <- m.use("test")(_.doNext(1))
+            first <- c.use("test")(_.doNext(1))
             _ <- timer.sleep(2.seconds)
-            second <- m.use("test")(_.get)
+            second <- c.use("test")(_.get)
             _ <- timer.sleep(6.seconds)
-            third <- m.use("test")(_.get)
+            third <- c.use("test")(_.get)
           } yield (first, second, third)
         }
         val running = program.unsafeToFuture()
@@ -34,10 +34,10 @@ class EventStateCacheSpec extends BaseTestSpec {
         5.seconds,
         _ => IO.pure(false)
       )
-      val program = cache.flatMap { m =>
+      val program = cache.flatMap { c =>
         for {
-          added <- m.add("test")
-          notAdded <- m.add("test")
+          added <- c.add("test")
+          notAdded <- c.add("test")
         } yield (added, notAdded)
       }
 
@@ -47,15 +47,14 @@ class EventStateCacheSpec extends BaseTestSpec {
       notAdded shouldBe false
     }
     "should not add state that already exists in the event log" in {
-      // Cache is configured to have an existence check that always returns true.
       val cache = EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
         5.seconds,
         k => if (k == "test") IO.pure(false) else IO.pure(true)
       )
-      val program = cache.flatMap { m =>
+      val program = cache.flatMap { c =>
         for {
-          added <- m.add("test")
-          notAdded <- m.add("bad-test")
+          added <- c.add("test")
+          notAdded <- c.add("bad-test")
         } yield (added, notAdded)
       }
 
@@ -63,6 +62,25 @@ class EventStateCacheSpec extends BaseTestSpec {
       val (added, notAdded) = Await.result(running, 2.seconds)
       added shouldBe true
       notAdded shouldBe false
+    }
+    "should allow using state that has been added" in {
+      val cache =
+        EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
+          5.seconds,
+          _ => IO.pure(false)
+        )
+      val program = cache.flatMap { c =>
+        for {
+          firstAttempt <- c.use("test")(_.get)
+          added <- c.add("test")
+          secondAttempt <- c.use("test")(_.get)
+        } yield (firstAttempt, added, secondAttempt)
+      }
+
+      val (firstAttempt, added, secondAttempt) = program.unsafeRunSync()
+      firstAttempt shouldBe None
+      added shouldBe true
+      secondAttempt shouldBe Some(1)
     }
   }
 }
