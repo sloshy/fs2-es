@@ -7,7 +7,7 @@ class EventStateSpec extends BaseTestSpec {
 
   "EventState" - {
     "Hydrated" - {
-      "Should have the starting value if the hydrated stream never emits" in {
+      "should have the starting value if the hydrated stream never emits" in {
         forAll { s: String =>
           val emptyStream = Stream.empty
           val state = EventState[IO].hydrated[Any, String](s, emptyStream) { (_, str) =>
@@ -16,7 +16,7 @@ class EventStateSpec extends BaseTestSpec {
           state.flatMap(_.get).unsafeRunSync() shouldBe s
         }
       }
-      "Should hydrate state with the given hydrator stream" in {
+      "should hydrate state with the given hydrator stream" in {
         forAll { (s: String, strs: List[String]) =>
           val eventStream = Stream.emits(strs)
           val state = EventState[IO].hydrated[String, String](s, eventStream) { (e, str) =>
@@ -27,7 +27,7 @@ class EventStateSpec extends BaseTestSpec {
       }
     }
     "Initial" - {
-      "Should have the starting value" in {
+      "should have the starting value" in {
         forAll { s: String =>
           val state = EventState[IO].initial[Any, String](s) { (_, str) =>
             List("failed, expected", s"'$str'").mkString(" ")

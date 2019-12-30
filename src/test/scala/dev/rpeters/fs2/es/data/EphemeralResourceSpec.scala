@@ -11,7 +11,7 @@ class EphemeralResourceSpec extends BaseTestSpec {
 
   "EphemeralResource" - {
     "timed" - {
-      "Should last as long as the specified duration" in {
+      "should last as long as the specified duration" in {
         val program = for {
           eph <- EphemeralResource[IO].timed(1, 5.seconds)
           _ <- timer.sleep(4.seconds)
@@ -30,7 +30,7 @@ class EphemeralResourceSpec extends BaseTestSpec {
         result._1.isDefined shouldBe true
         result._2.isDefined shouldBe false
       }
-      "Should not expire if the specified duration does not occur between uses" in {
+      "should not expire if the specified duration does not occur between uses" in {
         val program = for {
           eph <- EphemeralResource[IO].timed(1, 5.seconds)
           _ <- eph.expired

@@ -8,7 +8,7 @@ import scala.concurrent.Await
 class EventStateCacheSpec extends BaseTestSpec {
   "EventStateCache" - {
     "Rehydrating" - {
-      "Should reload state after the TTL elapses" in {
+      "should reload state after the TTL elapses" in {
         val cache =
           EventStateCache[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
         val program = cache.flatMap { m =>
@@ -28,7 +28,7 @@ class EventStateCacheSpec extends BaseTestSpec {
         result shouldBe expected
       }
     }
-    "Should not add state that already exists in-memory" in {
+    "should not add state that already exists in-memory" in {
       // Cache is configured such that the existence check is always false, forcing it to rely on a memory check.
       val cache = EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream(1, 2, 3))(_ + _)(
         5.seconds,
@@ -46,7 +46,7 @@ class EventStateCacheSpec extends BaseTestSpec {
       added shouldBe true
       notAdded shouldBe false
     }
-    "Should not add state that already exists in the event log" in {
+    "should not add state that already exists in the event log" in {
       // Cache is configured to have an existence check that always returns true.
       val cache = EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
         5.seconds,
