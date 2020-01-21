@@ -1,5 +1,5 @@
 //Deps
-val fs2V = "2.1.0"
+val fs2V = "2.2.0"
 
 lazy val root = (project in file("."))
   .settings(
