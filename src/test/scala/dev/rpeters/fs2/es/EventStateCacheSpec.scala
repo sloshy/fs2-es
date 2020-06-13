@@ -1,6 +1,8 @@
 package dev.rpeters.fs2.es
 
+import cats.data.Chain
 import cats.effect._
+import cats.effect.concurrent.Ref
 import fs2.Stream
 import scala.concurrent.duration._
 import scala.concurrent.Await
@@ -81,6 +83,24 @@ class EventStateCacheSpec extends BaseTestSpec {
       firstAttempt shouldBe None
       added shouldBe true
       secondAttempt shouldBe Some(1)
+    }
+    "should rehydrate state that has been manually added to the event stream" in {
+      val inMemoryPersistence = Ref.of[IO, Chain[Int]](Chain.empty)
+      val program = for {
+        ref <- inMemoryPersistence
+        c <- EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ =>
+          Stream.eval(ref.get).flatMap(x => Stream.emits(x.toList)).take(1)
+        )(_ + _)(5.seconds)
+        added <- c.add("test")
+        _ <- ref.update(_ :+ 0) //Add a no-op event
+        _ <- IO.sleep(6.seconds)
+        result <- c.use("test")(_.get)
+      } yield result
+
+      val running = program.unsafeToFuture()
+      tc.tick(6.seconds)
+      val result = Await.result(running, 2.seconds)
+      result shouldBe Some(1)
     }
   }
 }

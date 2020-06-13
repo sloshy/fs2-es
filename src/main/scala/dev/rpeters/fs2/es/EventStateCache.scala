@@ -42,21 +42,23 @@ object EventStateCache {
             val hydrateStream = keyHydrator(k)
             for {
               wasHydratedRef <- Ref[F].of(false)
-              es <- EventState[F]
-                .hydrated(initializer(k), hydrateStream.evalTap(_ => wasHydratedRef.set(true)))(eventProcessor)
+              es <-
+                EventState[F]
+                  .hydrated(initializer(k), hydrateStream.evalTap(_ => wasHydratedRef.set(true)))(eventProcessor)
               wasHydrated <- wasHydratedRef.get
-              result <- if (wasHydrated) {
-                //Entity does exist
-                EphemeralResource[F]
-                  .timed(es, dur)
-                  .flatTap { newEph =>
-                    Concurrent[F].start(newEph.expired >> deferredMap.del(k))
-                  }
-                  .map(_.some)
-              } else {
-                //Entity does not exist
-                Option.empty.pure[F]
-              }
+              result <-
+                if (wasHydrated) {
+                  //Entity does exist
+                  EphemeralResource[F]
+                    .timed(es, dur)
+                    .flatTap { newEph =>
+                      Concurrent[F].start(newEph.expired >> deferredMap.del(k))
+                    }
+                    .map(_.some)
+                } else {
+                  //Entity does not exist
+                  Option.empty.pure[F]
+                }
             } yield result
           }
           getEph.flatMap {
@@ -69,16 +71,20 @@ object EventStateCache {
             {
               false.pure[F]
             }, {
-              deferredMap.tryGet(k).flatMap {
-                case Some(Some(_)) =>
-                  false.pure[F]
-                case _ =>
-                  for {
-                    es <- EventState[F].initial[E, A](initializer(k))(eventProcessor)
-                    eph <- EphemeralResource[F].timed(es, dur)
-                    _ <- deferredMap.addPure(k)(eph.some)
-                  } yield true
-              }
+
+              deferredMap
+                .tryGet(k)
+                .flatMap {
+                  case Some(Some(_)) =>
+                    false.pure[F]
+                  case _ =>
+                    for {
+                      es <- EventState[F].initial[E, A](initializer(k))(eventProcessor)
+                      eph <- EphemeralResource[F].timed(es, dur)
+                      _ <- deferredMap.addPure(k)(eph.some)
+                      _ <- Concurrent[F].start(eph.expired >> deferredMap.del(k))
+                    } yield true
+                }
 
             }
           )
