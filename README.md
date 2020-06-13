@@ -9,9 +9,10 @@ The library is polymorphic using Cats Effect, so you can use it with any effect 
 To use, add the library to your `build.sbt` like so:
 ```
 libraryDependencies += "dev.rpeters" %% "fs2-es" % "<latest-version>"
+libraryDependencies += "dev.rpeters" %%% "fs2-es" % "<latest-version>" //If on ScalaJS
 ```
 
-Currently Scala 2.12 and 2.13 are both supported.
+Currently Scala 2.12 and 2.13 are both supported. Project is built for Scala JVM and ScalaJS 1.x+.
 
 # Introduction
 Event sourcing is an age-old concept about how you model state in your applications.

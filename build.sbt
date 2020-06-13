@@ -2,6 +2,13 @@
 val fs2V = "2.4.2"
 
 lazy val root = (project in file("."))
+  .aggregate(fs2Es.js, fs2Es.jvm)
+  .settings(
+    publish := {},
+    publishLocal := {}
+  )
+
+lazy val fs2Es = (crossProject(JSPlatform, JVMPlatform) in file("."))
   .settings(
     name := "fs2-es",
     organization := "dev.rpeters",
