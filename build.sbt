@@ -50,8 +50,8 @@ ThisBuild / sonatypeProjectHosting := Some(GitHubHosting("sloshy", "fs2-es", "me
 
 import ReleaseTransformations._
 
-releaseCrossBuild := true
-releaseProcess := Seq[ReleaseStep](
+ThisBuild / releaseCrossBuild := true
+ThisBuild / releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
   inquireVersions,
   runClean,
