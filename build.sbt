@@ -14,14 +14,18 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     organization := "dev.rpeters",
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
-      "io.chrisdavenport" %%% "agitation" % "0.2.0-M1+48-189ceac9+20200613-2317-SNAPSHOT",
+      "io.chrisdavenport" %%% "agitation" % "0.2.0",
       "org.typelevel" %%% "cats-effect-laws" % "2.1.3" % Test,
-      "org.scalatestplus" %%% "scalacheck-1-14" % "3.1.2.0" % Test
+      "org.scalameta" %%% "munit-scalacheck" % "0.7.9" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
+    testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq("2.12.11", "2.13.1"),
     javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
     scalacOptions := Seq("-target:jvm-1.8")
+  )
+  .jsSettings(
+    scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
   )
 
 lazy val docs = (project in file("fs2-es-docs"))

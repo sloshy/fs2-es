@@ -11,4 +11,4 @@ jobs:
     - uses: actions/checkout@v2
     - uses: olafurpg/setup-scala@v7
     - name: Test
-      run: sbt '+coreJVM/test'
+      run: sbt '+test'
