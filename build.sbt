@@ -2,21 +2,21 @@
 val fs2V = "2.4.2"
 
 lazy val root = (project in file("."))
-  .aggregate(fs2Es.js, fs2Es.jvm)
+  .aggregate(core.js, core.jvm)
   .settings(
     publish := {},
     publishLocal := {}
   )
 
-lazy val fs2Es = (crossProject(JSPlatform, JVMPlatform) in file("."))
+lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure) in file("core"))
   .settings(
     name := "fs2-es",
     organization := "dev.rpeters",
     libraryDependencies ++= Seq(
-      "co.fs2" %% "fs2-core" % fs2V,
-      "io.chrisdavenport" %% "agitation" % "0.2.0-M1",
-      "org.typelevel" %% "cats-effect-laws" % "2.1.3" % Test,
-      "org.scalatestplus" %% "scalacheck-1-14" % "3.1.2.0" % Test
+      "co.fs2" %%% "fs2-core" % fs2V,
+      "io.chrisdavenport" %%% "agitation" % "0.2.0-M1+48-189ceac9+20200613-2317-SNAPSHOT",
+      "org.typelevel" %%% "cats-effect-laws" % "2.1.3" % Test,
+      "org.scalatestplus" %%% "scalacheck-1-14" % "3.1.2.0" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
     crossScalaVersions := Seq("2.12.11", "2.13.1"),
@@ -29,7 +29,7 @@ lazy val docs = (project in file("fs2-es-docs"))
     scalacOptions ~= filterConsoleScalacOptions,
     publish / skip := true
   )
-  .dependsOn(root)
+  .dependsOn(core.jvm)
   .enablePlugins(MdocPlugin)
 
 ThisBuild / scalaVersion := "2.13.2"
