@@ -41,12 +41,12 @@ lazy val docs = (project in file("fs2-es-docs"))
 
 ThisBuild / scalaVersion := scala213
 
-publishMavenStyle := true
+ThisBuild / publishMavenStyle := true
 
-licenses := Seq("MIT" -> url("https://opensource.org/licenses/MIT"))
+ThisBuild / licenses := Seq("MIT" -> url("https://opensource.org/licenses/MIT"))
 
 import xerial.sbt.Sonatype._
-sonatypeProjectHosting := Some(GitHubHosting("sloshy", "fs2-es", "me@rpeters.dev"))
+ThisBuild / sonatypeProjectHosting := Some(GitHubHosting("sloshy", "fs2-es", "me@rpeters.dev"))
 
 import ReleaseTransformations._
 
