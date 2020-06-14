@@ -7,8 +7,7 @@ val scala212 = "2.12.11"
 lazy val root = (project in file("."))
   .aggregate(core.js, core.jvm)
   .settings(
-    publish := {},
-    publishLocal := {}
+    publish / skip := true
   )
 
 lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure) in file("core"))
