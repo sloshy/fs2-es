@@ -1,6 +1,9 @@
 //Deps
 val fs2V = "2.4.2"
 
+val scala213 = "2.13.2"
+val scala212 = "2.12.11"
+
 lazy val root = (project in file("."))
   .aggregate(core.js, core.jvm)
   .settings(
@@ -20,7 +23,7 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     ),
     publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
-    crossScalaVersions := Seq("2.12.11", "2.13.1"),
+    crossScalaVersions := Seq(scala212, scala213),
     javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
     scalacOptions := Seq("-target:jvm-1.8")
   )
@@ -36,7 +39,7 @@ lazy val docs = (project in file("fs2-es-docs"))
   .dependsOn(core.jvm)
   .enablePlugins(MdocPlugin)
 
-ThisBuild / scalaVersion := "2.13.2"
+ThisBuild / scalaVersion := scala213
 
 publishMavenStyle := true
 
