@@ -10,11 +10,11 @@ import scala.concurrent.ExecutionContext.Implicits._
 import cats.effect.concurrent.Ref
 import cats.effect.concurrent.Deferred
 
-class EphemeralResourceSpec extends BaseTestSpec {
+class ExpiringRefSpec extends BaseTestSpec {
 
   test("should last as long as the specified duration") {
     val program = for {
-      eph <- EphemeralResource[IO].timed(1, 5.seconds)
+      eph <- ExpiringRef[IO].timed(1, 5.seconds)
       _ <- timer.sleep(4.seconds)
       firstTry <- eph.use(_ => IO.unit)
       _ <- timer.sleep(6.seconds)
@@ -36,7 +36,7 @@ class EphemeralResourceSpec extends BaseTestSpec {
   test("should not expire if the specified duration does not occur between uses") {
     val program = for {
       d <- Deferred.tryable[IO, Unit]
-      eph <- EphemeralResource[IO].timed(1, 5.seconds)
+      eph <- ExpiringRef[IO].timed(1, 5.seconds)
       _ <- (eph.expired >> d.complete(())).start
       _ <- IO.sleep(5.seconds.minus(1.microsecond))
       completed <- d.tryGet.map(_.isDefined)

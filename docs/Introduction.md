@@ -68,33 +68,31 @@ If you have more relaxed constraints, look into using `SignallingEventState` ins
 It has methods `continuous` and `discrete` that mirror those on `fs2.concurrent.SignallingRef`.
 These will let you get a continuous stream of the current state or a stream of changes as-detected, but neither is guaranteed to give you all changes in state.
 
-## EphemeralResource
-Not directly related to events, but a useful primitive nonetheless, an `EphemeralResource` is a concurrently available value that expires after a certain period of time.
+## ExpiringRef
+Not directly related to events, but a useful primitive nonetheless, an `ExpiringRef` is a concurrently available value that expires after a certain period of time.
 When using event sourcing in particular, it can be helpful to "cache" event state in memory so that your application is not continuously reading from the event log every time it needs the latest state for something.
 This abstraction uses an internal timer that resets after each use so that lifetime management of your state is automated.
 
 Here is a simple example:
 ```scala mdoc
-import dev.rpeters.fs2.es.data.EphemeralResource
+import dev.rpeters.fs2.es.data.ExpiringRef
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
 implicit val cs = IO.contextShift(global)
 implicit val timer = IO.timer(global)
 
-val timedResource = for {
-  res <- EphemeralResource[IO].timed(1, 2.seconds)
+val timedRef = for {
+  res <- ExpiringRef[IO].timed(1, 2.seconds)
   firstResult <- res.use(i => IO.pure(i + 1))
   _ <- res.expired
   secondResult <- res.use(i => IO.pure(i + 2))
 } yield (firstResult, secondResult)
 
-timedResource.unsafeRunSync
+timedRef.unsafeRunSync
 ```
 
-There is also a variant `EphemeralResource[F].uses` that lets you specify a maximum number of uses, but I personally find the timed variant to be more practical for event sourcing.
-
-n.b. Despite the name and `use` method semantics, this type has nothing in common with `cats.effect.Resource`.
+There is also a variant `ExpiringRef[F].uses` that lets you specify a maximum number of uses, but I personally find the timed variant to be more practical for event sourcing.
 
 ## EventStateCache
 Now that we have abstractions for both event-sourced state and timed lifetime management, we can put the two together and automatically manage the lifetimes of `EventState` with `EventStateCache`.
@@ -197,7 +195,7 @@ Feel free to use it in your own projects, and any bug reports are much appreciat
 Now that we've gone through the library at large, there remains the question of exactly how much of this you need.
 If you are doing a small event-sourced program and maybe only have a few, finite sources of event-sourced state, you can get by with only `EventState` just fine.
 If you have a number that you are quite confident should fit in memory, but might be dynamic for other reasons, make a `MapRef[K, EventState]` or use some other pattern/structure to organize your state.
-If you need custom lifetime management built on top of that, feel free to write your own structures using `EphemeralResource` as well on top of that, or on the side as-needed.
+If you need custom lifetime management built on top of that, feel free to write your own structures using `ExpiringRef` as well on top of that, or on the side as-needed.
 Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateCache` should give you everything you need at once.
 It not only handles retrieving your state from your event log as you define it, but it also makes sure that you do not waste precious time or resources re-running the same event log queries by caching state in-memory.
 
