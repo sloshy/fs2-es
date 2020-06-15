@@ -10,24 +10,24 @@ import io.chrisdavenport.agitation.Agitation
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration.Duration
 
-sealed trait EphemeralResource[F[_], A] {
+sealed trait ExpiringRef[F[_], A] {
 
-  /** Acquires the resource and uses it as long as it still exists. `F[None]` when the resource is expired. */
+  /** Tries to acquire the reference and uses it as long as it still exists. `F[None]` when expired. */
   def use[B](f: A => F[B]): F[Option[B]]
 
-  /** Asynchronously waits until this resource is no longer available. */
+  /** Asynchronously waits until this reference is no longer available. */
   val expired: F[Unit]
 }
 
-object EphemeralResource {
-  final class EphemeralResourcePartiallyApplied[F[_]: Concurrent]() {
+object ExpiringRef {
+  final class ExpiringRefPartiallyApplied[F[_]: Concurrent]() {
     def timed[A](a: A, dur: FiniteDuration)(implicit ev: Timer[F]) =
       for {
         ag <- Agitation.timed[F](dur)
         countRef <- Ref[F].of(0)
         isExpired <- Deferred.tryable[F, Unit]
         _ <- (ag.settled >> isExpired.complete(())).start
-      } yield new EphemeralResource[F, A] {
+      } yield new ExpiringRef[F, A] {
         def use[B](f: A => F[B]): F[Option[B]] = {
           isExpired.tryGet
             .map(_.isDefined)
@@ -54,7 +54,7 @@ object EphemeralResource {
       for {
         countRef <- Ref[F].of(uses)
         isExpired <- Deferred[F, Unit]
-      } yield new EphemeralResource[F, A] {
+      } yield new ExpiringRef[F, A] {
         val expired: F[Unit] = isExpired.get
 
         def use[B](f: A => F[B]): F[Option[B]] = {
@@ -75,5 +75,5 @@ object EphemeralResource {
         }
       }
   }
-  def apply[F[_]: Concurrent] = new EphemeralResourcePartiallyApplied[F]()
+  def apply[F[_]: Concurrent] = new ExpiringRefPartiallyApplied[F]()
 }
