@@ -36,35 +36,46 @@ object EventState {
     * Example: `val ef: EventProcessor[String, String] = (newS, currentS) => currentS ++ newS` */
   type EventProcessor[E, A] = (E, A) => A
   final class EventStatePartiallyApplied[F[_]: Sync]() {
-    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: Ref[F, A]) = state.modify { internalA =>
-      val next = ef(e, internalA)
-      next -> next
-    }
-    private def finalState[E, A](state: Ref[F, A], ef: EventProcessor[E, A]) = new EventState[F, E, A] {
-      def doNext(e: E): F[A] = doNextInternal(e, ef, state)
-      def get: F[A] = state.get
-      def hookup: Pipe[F, E, A] = _.evalMap(doNext)
-    }
+    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: Ref[F, A]) =
+      state.modify { internalA =>
+        val next = ef(e, internalA)
+        next -> next
+      }
+    private def finalState[E, A](state: Ref[F, A], ef: EventProcessor[E, A]) =
+      new EventState[F, E, A] {
+        def doNext(e: E): F[A] = doNextInternal(e, ef, state)
+        def get: F[A] = state.get
+        def hookup: Pipe[F, E, A] = _.evalMap(doNext)
+      }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(ef: EventProcessor[E, A]) = Ref[F].of(a).map { state =>
-      finalState(state, ef)
-    }
+    def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
+      Ref[F].of(a).map { state =>
+        finalState(state, ef)
+      }
 
     /** Gives you an `EventState` that is restored from an existing stream of events.
       * The final `EventState` is returned upon completion of the hydrator stream.
       * Useful for rebuilding state from persisted or generated events, such as for a specific entity. */
-    def hydrated[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) = Ref[F].of(initial).flatMap {
-      state =>
+    def hydrated[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
+      Ref[F].of(initial).flatMap { state =>
         hydrator.evalTap(doNextInternal(_, ef, state)).compile.drain >> finalState(state, ef).pure[F]
-    }
+      }
+
+    /** Gives you an `EventState` that is restored from an existing stream of events.
+      * The final `EventState` is emitted as a single stream element upon completion of the hydrator stream.
+      * Useful for rebuilding state from persisted or generated events, such as for a specific entity. */
+    def hydratedStream[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
+      Stream.eval(Ref[F].of(initial)).flatMap { state =>
+        hydrator.evalTap(doNextInternal(_, ef, state)).last.as(finalState(state, ef))
+      }
   }
   final class SignallingEventStatePartiallyApplied[F[_]: Concurrent]() {
-    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: SignallingRef[F, A]) = state.modify {
-      internalA =>
+    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: SignallingRef[F, A]) =
+      state.modify { internalA =>
         val next = ef(e, internalA)
         next -> next
-    }
+      }
     private def finalState[E, A](state: SignallingRef[F, A], ef: EventProcessor[E, A]) =
       new SignallingEventState[F, E, A] {
         def doNext(e: E): F[A] = doNextInternal(e, ef, state)
@@ -75,9 +86,10 @@ object EventState {
       }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(ef: EventProcessor[E, A]) = SignallingRef[F, A](a).map { state =>
-      finalState(state, ef)
-    }
+    def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
+      SignallingRef[F, A](a).map { state =>
+        finalState(state, ef)
+      }
 
     /** Gives you an `EventState` that is restored from an existing stream of events.
       * The final `EventState` is returned upon completion of the hydrator stream.
@@ -85,6 +97,14 @@ object EventState {
     def hydrated[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
       SignallingRef[F, A](initial).flatMap { state =>
         hydrator.evalTap(doNextInternal(_, ef, state)).compile.drain >> finalState(state, ef).pure[F]
+      }
+
+    /** Gives you an `EventState` that is restored from an existing stream of events.
+      * The final `EventState` is emitted as a single stream element upon completion of the hydrator stream.
+      * Useful for rebuilding state from persisted or generated events, such as for a specific entity. */
+    def hydratedStream[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
+      Stream.eval(SignallingRef[F, A](initial)).flatMap { state =>
+        hydrator.evalTap(doNextInternal(_, ef, state)).last.as(finalState(state, ef))
       }
   }
   def apply[F[_]: Sync] = new EventStatePartiallyApplied[F]()
