@@ -1,19 +1,28 @@
+import xerial.sbt.Sonatype._
 //Deps
 val fs2V = "2.4.2"
 
 val scala213 = "2.13.2"
 val scala212 = "2.12.11"
 
+val commonSettings = Seq(
+  organization := "dev.rpeters",
+  javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
+  scalacOptions := Seq("-target:jvm-1.8"),
+  sonatypeProjectHosting := Some(GitHubHosting("sloshy", "fs2-es", "me@rpeters.dev"))
+)
+
 lazy val root = (project in file("."))
   .aggregate(core.js, core.jvm)
   .settings(
+    commonSettings,
     publish / skip := true
   )
 
 lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure) in file("core"))
   .settings(
+    commonSettings,
     name := "fs2-es",
-    organization := "dev.rpeters",
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % "0.2.0",
@@ -22,9 +31,7 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     ),
     publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
-    crossScalaVersions := Seq(scala212, scala213),
-    javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
-    scalacOptions := Seq("-target:jvm-1.8")
+    crossScalaVersions := Seq(scala212, scala213)
   )
   .jsSettings(
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
@@ -43,9 +50,6 @@ ThisBuild / scalaVersion := scala213
 ThisBuild / publishMavenStyle := true
 
 ThisBuild / licenses := Seq("MIT" -> url("https://opensource.org/licenses/MIT"))
-
-import xerial.sbt.Sonatype._
-ThisBuild / sonatypeProjectHosting := Some(GitHubHosting("sloshy", "fs2-es", "me@rpeters.dev"))
 
 import ReleaseTransformations._
 
