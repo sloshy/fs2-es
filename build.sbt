@@ -14,7 +14,7 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     organization := "dev.rpeters",
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
-      "io.chrisdavenport" %%% "agitation" % "0.2.0-M1+48-189ceac9+20200613-2317-SNAPSHOT",
+      "io.chrisdavenport" %%% "agitation" % "0.2.0",
       "org.typelevel" %%% "cats-effect-laws" % "2.1.3" % Test,
       "org.scalatestplus" %%% "scalacheck-1-14" % "3.1.2.0" % Test
     ),
