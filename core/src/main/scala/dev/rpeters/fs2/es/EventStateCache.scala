@@ -35,7 +35,7 @@ object EventStateCache {
         existenceCheck: K => F[Boolean] = (k: K) => keyHydrator(k).take(1).compile.last.map(_.isDefined)
     )(implicit ev: Timer[F]) =
       for {
-        deferredMap <- DeferredMap[F].tryableEmpty[K, Option[EphemeralResource[F, EventState[F, E, A]]]]
+        deferredMap <- DeferredMap[F].tryableEmpty[K, Option[ExpiringRef[F, EventState[F, E, A]]]]
       } yield new EventStateCache[F, K, E, A] {
         def use[B](k: K)(f: EventState[F, E, A] => F[B]): F[Option[B]] = {
           val getEph = deferredMap.getOrAddF(k) {
@@ -49,7 +49,7 @@ object EventStateCache {
               result <-
                 if (wasHydrated) {
                   //Entity does exist
-                  EphemeralResource[F]
+                  ExpiringRef[F]
                     .timed(es, dur)
                     .flatTap { newEph =>
                       Concurrent[F].start(newEph.expired >> deferredMap.del(k))
@@ -80,7 +80,7 @@ object EventStateCache {
                   case _ =>
                     for {
                       es <- EventState[F].initial[E, A](initializer(k))(eventProcessor)
-                      eph <- EphemeralResource[F].timed(es, dur)
+                      eph <- ExpiringRef[F].timed(es, dur)
                       _ <- deferredMap.addPure(k)(eph.some)
                       _ <- Concurrent[F].start(eph.expired >> deferredMap.del(k))
                     } yield true
