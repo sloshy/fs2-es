@@ -13,7 +13,7 @@ val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core.js, core.jvm)
+  .aggregate(core.js, core.jvm, testing.js, testing.jvm)
   .settings(
     commonSettings,
     publish / skip := true
@@ -36,6 +36,19 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
   .jsSettings(
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
   )
+
+lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure) in file("testing"))
+  .settings(
+    commonSettings,
+    name := "fs2-es-testing",
+    publishTo := sonatypePublishToBundle.value,
+    testFrameworks += new TestFramework("munit.Framework"),
+    crossScalaVersions := Seq(scala212, scala213)
+  )
+  .jsSettings(
+    scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
+  )
+  .dependsOn(core)
 
 lazy val docs = (project in file("fs2-es-docs"))
   .settings(
