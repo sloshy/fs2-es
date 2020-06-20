@@ -29,7 +29,6 @@ trait EventState[F[_], E, A] {
   def hookupWithInput: Pipe[F, E, (E, A)]
 }
 
-<<<<<<< HEAD
 /** An `EventState` implementation that lets you `subscribe` to incoming events. */
 trait EventStateTopic[F[_], E, A] extends EventState[F, E, A] {
 
@@ -48,10 +47,7 @@ trait EventStateTopic[F[_], E, A] extends EventState[F, E, A] {
   * If you are looking to get every single state change, look into `EventStateTopic` instead.
   * This is strictly for scenarios where you don't necessarily want every change, but want the latest changes regularly.
   */
-sealed trait SignallingEventState[F[_], E, A] extends EventState[F, E, A] {
-=======
 trait SignallingEventState[F[_], E, A] extends EventState[F, E, A] {
->>>>>>> Unseal EventState and SignallingEventState
 
   /** A continuous stream of this state's current value at the time of pulling. */
   def continuous: Stream[F, A]
