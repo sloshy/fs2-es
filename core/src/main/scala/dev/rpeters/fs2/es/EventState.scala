@@ -7,8 +7,6 @@ import fs2.{Pipe, Stream}
 import fs2.concurrent.SignallingRef
 import fs2.concurrent.Topic
 
-//TODO: More documentation
-
 /** An atomic reference that can only be modified through a linear application of events.
   * When you create one, all events are processed with the pre-supplied function you give it during construction.
   * Then, on every call to `doNext`, the state is atomically updated and returned to you.
@@ -95,10 +93,7 @@ object EventState {
         hydrator.evalTap(doNextInternal(_, ef, state)).compile.drain >> finalState(state, ef).pure[F]
       }
 
-    /** Gives you an `EventState` that is restored from an existing stream of events.
-      * The final `EventState` is emitted as a single stream element upon completion of the hydrator stream.
-      * Useful for rebuilding state from persisted or generated events, such as for a specific entity.
-      */
+    /** Like `hydrated`, but returns the result as an FS2 `Stream`. */
     def hydratedStream[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
       Stream.eval(Ref[F].of(initial)).flatMap { state =>
         hydrator.evalTap(doNextInternal(_, ef, state)).last.as(finalState(state, ef))
@@ -123,12 +118,17 @@ object EventState {
 
       }
 
+    /** Gives you an `EventStateTopic` that is initialized to a starting value. */
     def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
       for {
         state <- Ref[F].of(a)
         topic <- Topic[F, A](a)
       } yield finalState(state, topic, ef)
 
+    /** Gives you an `EventStateTopic` that is restored from an existing stream of events.
+      * The final `EventStateTopic` is returned upon completion of the hydrator stream.
+      * Useful for rebuilding state from persisted or generated events, such as for a specific entity.
+      */
     def hydrated[E, A](a: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
       for {
         state <- Ref[F].of(a)
@@ -136,6 +136,7 @@ object EventState {
         topic <- state.get.flatMap(Topic.apply[F, A])
       } yield finalState(state, topic, ef)
 
+    /** Like `hydrated`, but returns the result as an FS2 `Stream`. */
     def hydratedStream[E, A](a: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
       for {
         state <- Stream.eval(Ref[F].of(a))
@@ -174,16 +175,21 @@ object EventState {
         hydrator.evalTap(doNextInternal(_, ef, state)).compile.drain >> finalState(state, ef).pure[F]
       }
 
-    /** Gives you an `EventState` that is restored from an existing stream of events.
-      * The final `EventState` is emitted as a single stream element upon completion of the hydrator stream.
-      * Useful for rebuilding state from persisted or generated events, such as for a specific entity.
-      */
+    /** Like `hydrated`, but returns the result as an FS2 `Stream` */
     def hydratedStream[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
       Stream.eval(SignallingRef[F, A](initial)).flatMap { state =>
         hydrator.evalTap(doNextInternal(_, ef, state)).last.as(finalState(state, ef))
       }
   }
+
+  /** Selects the set of constructors for a base `EventState`.
+    * Also see `topic` and `signalling`.
+    */
   def apply[F[_]: Sync] = new EventStatePartiallyApplied[F]()
+
+  /** Selects the set of constructors for an `EventStateTopic`, a variant of `EventState` that is subscribable. */
   def topic[F[_]: Concurrent] = new EventStateTopicPartiallyApplied[F]()
+
+  /** Selects the set of constructors for a `SignallingEventState`, a variant of `EventState` that is continuously monitorable. */
   def signalling[F[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F]()
 }
