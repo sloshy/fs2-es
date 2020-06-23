@@ -9,7 +9,7 @@ import dev.rpeters.fs2.es.EventState
 import dev.rpeters.fs2.es.EventStateTopic
 import fs2.{Pipe, Stream}
 
-/** A wrapper around an EventState for debugging purposes.
+/** A wrapper around an `EventStateTopic` for debugging purposes.
   * Stores events added using an internal event log that you can seek forward and back in.
   * If you call `doNext` or pass an event through `hookup` while you are seeking away from the latest event,
   * all later events will be dropped. Do keep this in mind.
@@ -34,7 +34,7 @@ trait ReplayableEventState[F[_], E, A] extends EventStateTopic[F, E, A] {
   /** Seeks non-destructively to the initial state and keeps all events. */
   def seekToBeginning: F[A] = seekTo(0)
 
-  /** Resets to the nth state achieved.
+  /** Resets to the Nth state achieved.
     * It does this by replaying `n` events at a time and emitting the final result.
     *
     * For values `n <= 0`, returns the initial state.
@@ -47,6 +47,8 @@ trait ReplayableEventState[F[_], E, A] extends EventStateTopic[F, E, A] {
 object ReplayableEventState {
   private final case class InternalState[E, A](events: Chain[E], state: A, index: Int = 0)
   final class ReplayableEventStatePartiallyApplied[F[_]: Concurrent]() {
+
+    /** Creates a `ReplayableEventState` with the given starting value. */
     def initial[E, A](a: A)(ef: EventProcessor[E, A]) = {
       val initialState = InternalState(Chain.empty[E], a)
       for {
@@ -114,6 +116,12 @@ object ReplayableEventState {
 
       }
     }
+
+    /** Creates a `ReplayableEventState` that is restored from an existing stream of events. */
+    def hydrated[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) = ???
+
+    /** Like `hydrated`, but returns the result in an FS2 `Stream`. */
+    def hydratedStream[E, A](initial: A, hydreator: Stream[F, E])(ef: EventProcessor[E, A]) = ???
   }
   def apply[F[_]: Concurrent] = new ReplayableEventStatePartiallyApplied[F]()
 }
