@@ -43,12 +43,15 @@ lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pu
     name := "fs2-es-testing",
     publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
-    crossScalaVersions := Seq(scala212, scala213)
+    crossScalaVersions := Seq(scala212, scala213),
+    libraryDependencies ++= Seq(
+      "org.scalameta" %%% "munit-scalacheck" % "0.7.9" % Test
+    )
   )
   .jsSettings(
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
   )
-  .dependsOn(core)
+  .dependsOn(core % "compile->compile;test->test")
 
 lazy val docs = (project in file("fs2-es-docs"))
   .settings(
