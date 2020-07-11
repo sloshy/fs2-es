@@ -79,13 +79,13 @@ object ReplayableEventState {
 
         val get: F[A] = state.get
 
-        val hookup: fs2.Pipe[F, E, A] = _.evalMap(doNext)
+        val hookup: Pipe[F, E, A] = _.evalMap(doNext)
 
-        val hookupWithInput: fs2.Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
+        val hookupWithInput: Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
 
         val subscribe: Stream[F, A] = topic.subscribe(1)
 
-        val hookupAndSubscribe: fs2.Pipe[F, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
+        val hookupAndSubscribe: Pipe[F, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
 
         val getEventCount: F[Int] = internalState.get.map(_.events.size.toInt)
 
