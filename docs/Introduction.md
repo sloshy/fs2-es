@@ -64,9 +64,28 @@ hookedUpStream.unsafeRunSync()
 ```
 
 When using `hookup`, if you only have a single event stream going into your `EventState` then the resulting stream is guaranteed to have all possible state changes.
-If you have more relaxed constraints, look into using `SignallingEventState` instead with the `EventState.signalling` builder.
-It has methods `continuous` and `discrete` that mirror those on `fs2.concurrent.SignallingRef`.
-These will let you get a continuous stream of the current state or a stream of changes as-detected, but neither is guaranteed to give you all changes in state.
+
+### SignallingEventState
+FS2 has some useful concurrency primitives in the form of `SignallingRef`s and `Topic`s, among others.
+`SignallingRef` is useful when you want to use a variable as a signal where you continuously want the latest state change.
+`SignallingEventState` is similar in that it has properties just like a `SignallingRef` but it also allows you to continuously stream state changes from it.
+In particular, the following two methods are available:
+* `continuous` - Get a stream that continuously emits the latest state at the time
+* `discrete` - Get a stream of the latest state values, but only when the new state value is distinct from the previous value
+
+You should be aware that **you are not guaranteed every single state change using these methods**.
+It is equivallent to repeatedly calling `get` and maybe doing some stateful filtering after.
+If you actually want every single resulting state, you can use a single input stream with the `hookup` pipe.
+Or, you can use `EventStateTopic` and subscribe.
+
+### EventStateTopic
+`EventStateTopic` is a variant of `EventState` that allows you to subscribe to all new state changes, just like an FS2 `Topic`.
+It has a new method `subscribe` that returns a stream of all state changes from the moment of subscription, beginning with its current value.
+You can also `hookupAndSubscribe` which will concurrently apply all events from the current stream, as well as subscribe and return all events, including ones not from the input stream.
+This can be very useful if you have multiple spots where you want to "listen for" new state changes and get all of them, instead of just the latest one.
+The downside of doing this approach is it is less efficient, as every single state change must be processed instead of just the latest one available, but sometimes that is the exact semantic that you want.
+
+If you are debugging, look into `ReplayableEventState` from the testing package, which is based on `EventStateTopic`.
 
 ## ExpiringRef
 Not directly related to events, but a useful primitive nonetheless, an `ExpiringRef` is a concurrently available value that expires after a certain period of time.

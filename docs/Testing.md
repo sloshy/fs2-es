@@ -110,3 +110,9 @@ resetTest.flatMap { case (ls, rs, re, nis, nie) =>
     IO(println(s"New Initial Events: $nie"))
 }.unsafeRunSync()
 ```
+
+## State changes and subscriptions
+Because this is based on `EventStateTopic`, you can `subscribe` to receive all state changes.
+You might have noticed that the methods for resetting and seeking state also return the resulting state back.
+Each time you call one of these methods, you will also publish the resulting state to all subscribers.
+This decision was made intentionally to allow for reactive debugging in environments such as ScalaJS where you might be using this as a reactive state store (think Flux/Redux).
