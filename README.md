@@ -4,7 +4,7 @@
 This is a small library to encode event-sourcing patterns using FS2, a streaming library in Scala.
 The library is polymorphic using Cats Effect, so you can use it with any effect type you want that implements `cats.effect.Concurrent`.
 
-**This library is in active development and **
+**This library is in active development and the API may change without warning**
 
 To use, add the library to your `build.sbt` like so:
 ```
