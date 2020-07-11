@@ -58,7 +58,7 @@ lazy val docs = (project in file("fs2-es-docs"))
     scalacOptions ~= filterConsoleScalacOptions,
     publish / skip := true
   )
-  .dependsOn(core.jvm)
+  .dependsOn(testing.jvm)
   .enablePlugins(MdocPlugin)
 
 ThisBuild / scalaVersion := scala213
