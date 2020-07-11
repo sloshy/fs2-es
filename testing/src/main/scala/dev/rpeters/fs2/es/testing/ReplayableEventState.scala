@@ -1,5 +1,6 @@
 package dev.rpeters.fs2.es.testing
 
+import cats.FlatMap
 import cats.data.Chain
 import cats.effect.Concurrent
 import cats.implicits._
@@ -37,6 +38,16 @@ trait ReplayableEventState[F[_], E, A] extends EventStateTopic[F, E, A] {
 
   /** Seeks non-destructively to the initial state and keeps all events. */
   def seekToBeginning: F[A] = seekTo(0)
+
+  /** Seeks backwards by up to `n` states, if possible.
+    * Passing in a negative number will be the same as seeking forward.
+    */
+  def seekBackBy(n: Int)(implicit F: FlatMap[F]) = getIndex.flatMap(i => seekTo(i - n))
+
+  /** Seeks forwards by up to `n` states, if possible.
+    * Passing in a negative number will be the same as seeking backward.
+    */
+  def seekForwardBy(n: Int)(implicit F: FlatMap[F]) = seekBackBy(n * -1)
 
   /** Resets to the Nth state achieved.
     * It does this by replaying `n` events at a time and emitting the final result.
