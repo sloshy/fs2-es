@@ -1,4 +1,4 @@
-# FS2-ES Introduction
+# Introduction
 Event sourcing is an age-old concept about how you model state in your applications.
 To put it simply, all state is modeled as a left fold on a linear sequence of "events".
 For example, here is an extremely basic "event-sourced" program using FS2:
