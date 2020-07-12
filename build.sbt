@@ -26,7 +26,7 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % "0.2.0",
-      "org.typelevel" %%% "cats-effect-laws" % "2.1.3" % Test,
+      "org.typelevel" %%% "cats-effect-laws" % "2.1.4" % Test,
       "org.scalameta" %%% "munit-scalacheck" % "0.7.9" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
