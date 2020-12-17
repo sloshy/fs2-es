@@ -1,5 +1,5 @@
 //Build
-addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.2.13")
+addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.2.14")
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.2")
 addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat" % "0.1.16")
 addSbtPlugin("ch.epfl.scala" % "sbt-bloop" % "1.3.4")
