@@ -27,7 +27,7 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % "0.2.0",
       "org.typelevel" %%% "cats-effect-laws" % "2.1.4" % Test,
-      "org.scalameta" %%% "munit-scalacheck" % "0.7.19" % Test
+      "org.scalameta" %%% "munit-scalacheck" % "0.7.21" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
@@ -45,7 +45,7 @@ lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pu
     testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq(scala212, scala213),
     libraryDependencies ++= Seq(
-      "org.scalameta" %%% "munit-scalacheck" % "0.7.19" % Test
+      "org.scalameta" %%% "munit-scalacheck" % "0.7.21" % Test
     )
   )
   .jsSettings(
