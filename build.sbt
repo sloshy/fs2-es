@@ -1,6 +1,6 @@
 import xerial.sbt.Sonatype._
 //Deps
-val fs2V = "2.4.6"
+val fs2V = "2.5.0"
 
 val scala213 = "2.13.2"
 val scala212 = "2.12.11"
