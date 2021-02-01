@@ -3,3 +3,4 @@ project/project/
 .metals/
 target/
 metals.sbt
+.vscode/
