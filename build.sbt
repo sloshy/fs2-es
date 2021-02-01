@@ -14,7 +14,7 @@ val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core.js, core.jvm, testing.js, testing.jvm)
+  .aggregate(core.js, core.jvm, docs, testing.js, testing.jvm)
   .settings(
     commonSettings,
     publish / skip := true
