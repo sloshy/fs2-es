@@ -1,6 +1,9 @@
 import xerial.sbt.Sonatype._
 //Deps
+val agitationV = "0.2.0"
+val catsEffectV = "2.3.1"
 val fs2V = "2.5.0"
+val munitV = "0.7.21"
 
 val scala213 = "2.13.4"
 val scala212 = "2.12.13"
@@ -25,9 +28,9 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     name := "fs2-es",
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
-      "io.chrisdavenport" %%% "agitation" % "0.2.0",
-      "org.typelevel" %%% "cats-effect-laws" % "2.3.1" % Test,
-      "org.scalameta" %%% "munit-scalacheck" % "0.7.21" % Test
+      "io.chrisdavenport" %%% "agitation" % agitationV,
+      "org.typelevel" %%% "cats-effect-laws" % catsEffectV % Test,
+      "org.scalameta" %%% "munit-scalacheck" % munitV % Test
     ),
     publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
@@ -43,10 +46,8 @@ lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pu
     name := "fs2-es-testing",
     publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
-    crossScalaVersions := Seq(scala212, scala213),
-    libraryDependencies ++= Seq(
-      "org.scalameta" %%% "munit-scalacheck" % "0.7.21" % Test
-    )
+    crossScalaVersions := Seq(scala212, scala213)
+  )
   )
   .jsSettings(
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
