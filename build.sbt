@@ -9,10 +9,8 @@ val scala213 = "2.13.4"
 val scala212 = "2.12.13"
 
 val commonSettings = Seq(
-  organization := "dev.rpeters",
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
-  scalacOptions := Seq("-target:jvm-1.8"),
-  sonatypeProjectHosting := Some(GitHubHosting("sloshy", "fs2-es", "me@rpeters.dev"))
+  scalacOptions := Seq("-target:jvm-1.8")
 )
 
 lazy val root = (project in file("."))
@@ -32,7 +30,6 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
       "org.typelevel" %%% "cats-effect-laws" % catsEffectV % Test,
       "org.scalameta" %%% "munit-scalacheck" % munitV % Test
     ),
-    publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq(scala212, scala213)
   )
@@ -44,10 +41,8 @@ lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pu
   .settings(
     commonSettings,
     name := "fs2-es-testing",
-    publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq(scala212, scala213)
-  )
   )
   .jsSettings(
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
@@ -64,24 +59,29 @@ lazy val docs = (project in file("fs2-es-docs"))
 
 ThisBuild / scalaVersion := scala213
 
-ThisBuild / publishMavenStyle := true
-
+ThisBuild / developers := List(
+  Developer(
+    "sloshy",
+    "Ryan Peters",
+    "me@rpeters.dev",
+    url("https://blog.rpeters.dev/")
+  )
+)
+ThisBuild / homepage := Some(url("https://github.com/sloshy/fs2-es/"))
 ThisBuild / licenses := Seq("MIT" -> url("https://opensource.org/licenses/MIT"))
+ThisBuild / organization := "dev.rpeters"
 
-import ReleaseTransformations._
-
-ThisBuild / releaseCrossBuild := true
-ThisBuild / releaseProcess := Seq[ReleaseStep](
-  checkSnapshotDependencies,
-  inquireVersions,
-  runClean,
-  runTest,
-  setReleaseVersion,
-  commitReleaseVersion,
-  tagRelease,
-  releaseStepCommandAndRemaining("+publishSigned"),
-  releaseStepCommand("sonatypeBundleRelease"),
-  setNextVersion,
-  commitNextVersion,
-  pushChanges
+ThisBuild / githubWorkflowTargetTags ++= Seq("v*")
+ThisBuild / githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v")))
+ThisBuild / githubWorkflowPublish := Seq(WorkflowStep.Sbt(List("ci-release")))
+ThisBuild / githubWorkflowPublish := Seq(
+  WorkflowStep.Sbt(
+    List("ci-release"),
+    env = Map(
+      "PGP_PASSPHRASE" -> "${{ secrets.PGP_PASSPHRASE }}",
+      "PGP_SECRET" -> "${{ secrets.PGP_SECRET }}",
+      "SONATYPE_PASSWORD" -> "${{ secrets.SONATYPE_PASSWORD }}",
+      "SONATYPE_USERNAME" -> "${{ secrets.SONATYPE_USERNAME }}"
+    )
+  )
 )

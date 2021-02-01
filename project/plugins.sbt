@@ -6,6 +6,5 @@ addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.4.0")
 addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.0.0")
 
 //Deploy
-addSbtPlugin("com.jsuereth" % "sbt-pgp" % "2.0.1")
-addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "3.9.5")
-addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.13")
+addSbtPlugin("com.geirsson" % "sbt-ci-release" % "1.5.5")
+addSbtPlugin("com.codecommit" % "sbt-github-actions" % "0.10.1")
