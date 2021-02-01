@@ -12,7 +12,7 @@ libraryDependencies += "dev.rpeters" %% "fs2-es" % "<latest-version>"
 libraryDependencies += "dev.rpeters" %% "fs2-es-testing" % "<latest-version>" //Test module
 ```
 
-Currently Scala 2.12 and 2.13 are both supported. Project is built for Scala JVM and ScalaJS 1.x+.
+Currently Scala 2.12 and 2.13 are both supported. Project is built for Scala JVM and ScalaJS 1.4+.
 
 ## User Documentation:
 * [Introduction](docs/Introduction.md) - Concepts and constructs implemented by this library
