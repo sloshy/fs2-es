@@ -39,8 +39,13 @@ object MapRef {
         (map + (k -> v), a)
       }
     }
+
+    /** Construct an empty `MapRef`. */
     def empty[K, V] = Ref[F].of(Map.empty[K, V]).map(mapFromRef)
+
+    /** Construct a `MapRef` from a map of pure values. */
     def of[K, V](map: Map[K, V]) = Ref[F].of(map).map(mapFromRef)
   }
+
   def apply[F[_]: Sync] = new MapRefPartiallyApplied[F]
 }

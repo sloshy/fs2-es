@@ -21,6 +21,8 @@ sealed trait ExpiringRef[F[_], A] {
 
 object ExpiringRef {
   final class ExpiringRefPartiallyApplied[F[_]: Concurrent]() {
+
+    /** Construct an `ExpiringRef` that expires references after `dur` time between uses. */
     def timed[A](a: A, dur: FiniteDuration)(implicit ev: Timer[F]) =
       for {
         ag <- Agitation.timed[F](dur)
@@ -50,6 +52,8 @@ object ExpiringRef {
 
         val expired: F[Unit] = ag.settled
       }
+
+    /** Construct an `ExpiringRef` that expires references after `uses` number of uses. */
     def uses[A](a: A, uses: Int) =
       for {
         countRef <- Ref[F].of(uses)
@@ -75,5 +79,6 @@ object ExpiringRef {
         }
       }
   }
+
   def apply[F[_]: Concurrent] = new ExpiringRefPartiallyApplied[F]()
 }
