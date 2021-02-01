@@ -84,17 +84,17 @@ sealed trait TryableDeferredMap[F[_], K, V] extends DeferredMap[F, K, V, Tryable
 }
 
 object DeferredMap {
-  final class DeferredMapPartiallyApplied[F[_]: Concurrent: Timer] {
-    private def construct[K, V](map: MapRef[F, K, Deferred[F, V]]) =
-      new DeferredMap[F, K, V, Deferred[F, V]] {
-        def add(k: K)(d: Deferred[F, V]): F[Unit] =
+  final class DeferredMapPartiallyApplied[F[_]: Sync, G[_]: Concurrent: Timer] {
+    private def construct[K, V](map: MapRef[G, K, Deferred[G, V]]) =
+      new DeferredMap[G, K, V, Deferred[G, V]] {
+        def add(k: K)(d: Deferred[G, V]): G[Unit] =
           map
             .upsertOpt(k) {
               case Some(existing) => existing -> d.get.flatMap(existing.complete).attempt.void
-              case None           => d -> Applicative[F].unit
+              case None           => d -> Applicative[G].unit
             }
             .flatten
-        def addF(k: K)(f: F[V]): F[Unit] = Deferred[F, V].flatMap { d =>
+        def addF(k: K)(f: G[V]): G[Unit] = Deferred[G, V].flatMap { d =>
           map
             .upsertOpt(k) {
               case Some(existing) => existing -> f.flatMap(existing.complete).attempt.void
@@ -102,7 +102,7 @@ object DeferredMap {
             }
             .flatten
         }
-        def addPure(k: K)(v: V): F[Unit] = Deferred[F, V].flatMap { d =>
+        def addPure(k: K)(v: V): G[Unit] = Deferred[G, V].flatMap { d =>
           map
             .upsertOpt(k) {
               case Some(existing) => existing -> existing.complete(v).attempt.void
@@ -110,14 +110,14 @@ object DeferredMap {
             }
             .flatten
         }
-        def del(k: K): F[Boolean] = map.del(k)
-        def get(k: K): F[V] = Deferred[F, V].flatMap(getOrAdd(k))
-        def getOpt(k: K): F[Option[V]] = getDeferredOpt(k).flatMap {
-          case None    => Option.empty.pure[F]
+        def del(k: K): G[Boolean] = map.del(k)
+        def get(k: K): G[V] = Deferred[G, V].flatMap(getOrAdd(k))
+        def getOpt(k: K): G[Option[V]] = getDeferredOpt(k).flatMap {
+          case None    => Option.empty.pure[G]
           case Some(d) => d.get.map(_.some)
         }
-        def getOrAdd(k: K)(d: Deferred[F, V]): F[V] = getDeferredOrAdd(k)(d).flatMap(_.get)
-        def getOrAddF(k: K)(f: F[V]): F[V] = Deferred[F, V].flatMap { newDeferred =>
+        def getOrAdd(k: K)(d: Deferred[G, V]): G[V] = getDeferredOrAdd(k)(d).flatMap(_.get)
+        def getOrAddF(k: K)(f: G[V]): G[V] = Deferred[G, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
               case None    => (newDeferred, f.flatTap(newDeferred.complete))
@@ -125,34 +125,34 @@ object DeferredMap {
             }
             .flatten
         }
-        def getOrAddPure(k: K)(v: V): F[V] = Deferred[F, V].flatMap { newDeferred =>
+        def getOrAddPure(k: K)(v: V): G[V] = Deferred[G, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
-              case None    => (newDeferred, v.pure[F].flatTap(newDeferred.complete))
+              case None    => (newDeferred, v.pure[G].flatTap(newDeferred.complete))
               case Some(d) => (d, d.get)
             }
             .flatten
         }
-        def getDeferred(k: K): F[Deferred[F, V]] = Deferred[F, V].flatMap(getDeferredOrAdd(k))
-        def getDeferredOrAdd(k: K)(d: Deferred[F, V]): F[Deferred[F, V]] =
+        def getDeferred(k: K): G[Deferred[G, V]] = Deferred[G, V].flatMap(getDeferredOrAdd(k))
+        def getDeferredOrAdd(k: K)(d: Deferred[G, V]): G[Deferred[G, V]] =
           map
             .upsertOpt(k) {
               case None        => (d, d)
               case Some(other) => (other, other)
             }
-        def getDeferredOpt(k: K): F[Option[Deferred[F, V]]] = map.get(k)
+        def getDeferredOpt(k: K): G[Option[Deferred[G, V]]] = map.get(k)
       }
 
-    private def constructTryable[K, V](map: MapRef[F, K, TryableDeferred[F, V]]) =
-      new TryableDeferredMap[F, K, V] {
-        def add(k: K)(d: TryableDeferred[F, V]): F[Unit] =
+    private def constructTryable[K, V](map: MapRef[G, K, TryableDeferred[G, V]]) =
+      new TryableDeferredMap[G, K, V] {
+        def add(k: K)(d: TryableDeferred[G, V]): G[Unit] =
           map
             .upsertOpt(k) {
               case Some(existing) => existing -> d.get.flatMap(existing.complete).attempt.void
-              case None           => d -> Applicative[F].unit
+              case None           => d -> Applicative[G].unit
             }
             .flatten
-        def addF(k: K)(f: F[V]): F[Unit] = Deferred.tryable[F, V].flatMap { d =>
+        def addF(k: K)(f: G[V]): G[Unit] = Deferred.tryable[G, V].flatMap { d =>
           map
             .upsertOpt(k) {
               case Some(existing) => existing -> f.flatMap(existing.complete).attempt.void
@@ -160,7 +160,7 @@ object DeferredMap {
             }
             .flatten
         }
-        def addPure(k: K)(v: V): F[Unit] = Deferred.tryable[F, V] flatMap { d =>
+        def addPure(k: K)(v: V): G[Unit] = Deferred.tryable[G, V] flatMap { d =>
           map
             .upsertOpt(k) {
               case Some(existing) => existing -> existing.complete(v).attempt.void
@@ -168,14 +168,14 @@ object DeferredMap {
             }
             .flatten
         }
-        def del(k: K): F[Boolean] = map.del(k)
-        def get(k: K): F[V] = Deferred.tryable[F, V].flatMap(getOrAdd(k))
-        def getOpt(k: K): F[Option[V]] = getDeferredOpt(k).flatMap {
-          case None    => Option.empty.pure[F]
+        def del(k: K): G[Boolean] = map.del(k)
+        def get(k: K): G[V] = Deferred.tryable[G, V].flatMap(getOrAdd(k))
+        def getOpt(k: K): G[Option[V]] = getDeferredOpt(k).flatMap {
+          case None    => Option.empty.pure[G]
           case Some(d) => d.get.map(_.some)
         }
-        def getOrAdd(k: K)(d: TryableDeferred[F, V]): F[V] = getDeferredOrAdd(k)(d).flatMap(_.get)
-        def getOrAddF(k: K)(f: F[V]): F[V] = Deferred.tryable[F, V].flatMap { newDeferred =>
+        def getOrAdd(k: K)(d: TryableDeferred[G, V]): G[V] = getDeferredOrAdd(k)(d).flatMap(_.get)
+        def getOrAddF(k: K)(f: G[V]): G[V] = Deferred.tryable[G, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
               case None    => (newDeferred, f.flatTap(newDeferred.complete))
@@ -183,74 +183,62 @@ object DeferredMap {
             }
             .flatten
         }
-        def getOrAddPure(k: K)(v: V): F[V] = Deferred.tryable[F, V].flatMap { newDeferred =>
+        def getOrAddPure(k: K)(v: V): G[V] = Deferred.tryable[G, V].flatMap { newDeferred =>
           map
             .upsertOpt(k) {
-              case None    => (newDeferred, v.pure[F].flatTap(newDeferred.complete))
+              case None    => (newDeferred, v.pure[G].flatTap(newDeferred.complete))
               case Some(d) => (d, d.get)
             }
             .flatten
         }
-        def getDeferred(k: K): F[TryableDeferred[F, V]] = Deferred.tryable[F, V].flatMap(getDeferredOrAdd(k))
-        def getDeferredOrAdd(k: K)(d: TryableDeferred[F, V]): F[TryableDeferred[F, V]] =
+        def getDeferred(k: K): G[TryableDeferred[G, V]] = Deferred.tryable[G, V].flatMap(getDeferredOrAdd(k))
+        def getDeferredOrAdd(k: K)(d: TryableDeferred[G, V]): G[TryableDeferred[G, V]] =
           map
             .upsertOpt(k) {
               case None        => (d, d)
               case Some(other) => (other, other)
             }
-        def getDeferredOpt(k: K): F[Option[TryableDeferred[F, V]]] = map.get(k)
-        def tryGet(k: K): F[Option[V]] = map.get(k).flatMap {
-          case None    => Option.empty.pure[F]
+        def getDeferredOpt(k: K): G[Option[TryableDeferred[G, V]]] = map.get(k)
+        def tryGet(k: K): G[Option[V]] = map.get(k).flatMap {
+          case None    => Option.empty.pure[G]
           case Some(d) => d.tryGet
         }
-        def checkCompleted(k: K): F[Option[Boolean]] = map.get(k).flatMap {
-          case None => Option.empty.pure[F]
+        def checkCompleted(k: K): G[Option[Boolean]] = map.get(k).flatMap {
+          case None => Option.empty.pure[G]
           case Some(d) =>
             d.tryGet.flatMap {
-              case None    => false.some.pure[F]
-              case Some(_) => true.some.pure[F]
+              case None    => false.some.pure[G]
+              case Some(_) => true.some.pure[G]
             }
         }
-        def delIfComplete(k: K): F[Option[Boolean]] = checkCompleted(k).flatMap {
-          case None        => Option.empty.pure[F]
+        def delIfComplete(k: K): G[Option[Boolean]] = checkCompleted(k).flatMap {
+          case None        => Option.empty.pure[G]
           case Some(true)  => map.del(k).map(_.some)
-          case Some(false) => false.some.pure[F]
+          case Some(false) => false.some.pure[G]
         }
-        def delIfIncomplete(k: K): F[Option[Boolean]] = checkCompleted(k).flatMap {
-          case None        => Option.empty.pure[F]
-          case Some(true)  => false.some.pure[F]
+        def delIfIncomplete(k: K): G[Option[Boolean]] = checkCompleted(k).flatMap {
+          case None        => Option.empty.pure[G]
+          case Some(true)  => false.some.pure[G]
           case Some(false) => map.del(k).map(_.some)
         }
       }
 
     /** Construct an empty `DeferredMap`. */
-    def empty[K, V] = MapRef[F].empty[K, Deferred[F, V]].map(construct)
+    def empty[K, V] = MapRef.in[F, G].empty[K, Deferred[G, V]].map(construct)
 
     /** Construct a `DeferredMap` from an existing map of `Deferred` values. */
-    def of[K, V](map: Map[K, Deferred[F, V]]) = MapRef[F].of(map).map(construct)
-
-    /** Construct a `DeferredMap` from an existing map of pure values. */
-    def ofPure[K, V](map: Map[K, V]) = {
-      val newKvs = map.toList.traverse { case (k, v) =>
-        Deferred[F, V].flatMap(d => d.complete(v).as(k -> d))
-      }
-      newKvs.flatMap(x => MapRef[F].of(x.toMap).map(construct))
-    }
+    def of[K, V](map: Map[K, Deferred[G, V]]) = MapRef.in[F, G].of(map).map(construct)
 
     /** Construct an empty `TryableDeferredMap`. */
-    def tryableEmpty[K, V] = MapRef[F].empty[K, TryableDeferred[F, V]].map(constructTryable[K, V])
+    def tryableEmpty[K, V] = MapRef.in[F, G].empty[K, TryableDeferred[G, V]].map(constructTryable[K, V])
 
     /** Construct a `TryableDeferredMap` from an existing map of `TryableDeferred` values. */
-    def tryableOf[K, V](map: Map[K, TryableDeferred[F, V]]) = MapRef[F].of(map).map(constructTryable[K, V])
-
-    /** Construct a `TryableDeferredMap` from an existing map of pure values. */
-    def tryablePure[K, V](map: Map[K, V]) = {
-      val newKvs = map.toList.traverse { case (k, v) =>
-        Deferred.tryable[F, V].flatMap(d => d.complete(v).as(k -> d))
-      }
-      newKvs.flatMap(x => MapRef[F].of(x.toMap).map(constructTryable))
-    }
+    def tryableOf[K, V](map: Map[K, TryableDeferred[G, V]]) = MapRef.in[F, G].of(map).map(constructTryable[K, V])
   }
 
-  def apply[F[_]: Concurrent: Timer] = new DeferredMapPartiallyApplied[F]
+  /** A set of constructors for `DeferredMap` using the same effect type for everything. */
+  def apply[F[_]: Concurrent: Timer] = new DeferredMapPartiallyApplied[F, F]
+
+  /** A set of constructors for `DeferredMap` where you can use a different effect for your internal `DeferredMap`. */
+  def in[F[_]: Sync, G[_]: Concurrent: Timer] = new DeferredMapPartiallyApplied[F, G]
 }
