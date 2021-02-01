@@ -1,6 +1,6 @@
 import xerial.sbt.Sonatype._
 //Deps
-val fs2V = "2.4.2"
+val fs2V = "2.4.6"
 
 val scala213 = "2.13.2"
 val scala212 = "2.12.11"
@@ -26,8 +26,8 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % "0.2.0",
-      "org.typelevel" %%% "cats-effect-laws" % "2.1.3" % Test,
-      "org.scalameta" %%% "munit-scalacheck" % "0.7.9" % Test
+      "org.typelevel" %%% "cats-effect-laws" % "2.1.4" % Test,
+      "org.scalameta" %%% "munit-scalacheck" % "0.7.21" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
     testFrameworks += new TestFramework("munit.Framework"),
@@ -45,7 +45,7 @@ lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pu
     testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq(scala212, scala213),
     libraryDependencies ++= Seq(
-      "org.scalameta" %%% "munit-scalacheck" % "0.7.9" % Test
+      "org.scalameta" %%% "munit-scalacheck" % "0.7.21" % Test
     )
   )
   .jsSettings(
