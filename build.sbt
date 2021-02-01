@@ -1,9 +1,9 @@
 import xerial.sbt.Sonatype._
 //Deps
-val fs2V = "2.4.6"
+val fs2V = "2.5.0"
 
-val scala213 = "2.13.2"
-val scala212 = "2.12.11"
+val scala213 = "2.13.4"
+val scala212 = "2.12.13"
 
 val commonSettings = Seq(
   organization := "dev.rpeters",
@@ -26,7 +26,7 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % "0.2.0",
-      "org.typelevel" %%% "cats-effect-laws" % "2.1.4" % Test,
+      "org.typelevel" %%% "cats-effect-laws" % "2.3.1" % Test,
       "org.scalameta" %%% "munit-scalacheck" % "0.7.21" % Test
     ),
     publishTo := sonatypePublishToBundle.value,
