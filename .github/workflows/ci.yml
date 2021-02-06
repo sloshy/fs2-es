@@ -56,7 +56,7 @@ jobs:
         run: sbt ++${{ matrix.scala }} test
 
       - name: Compress target directories
-        run: tar cf targets.tar testing/.jvm/target target fs2-es-docs/target core/.js/target testing/.js/target core/.jvm/target project/target
+        run: tar cf targets.tar testing/.jvm/target target core/.js/target testing/.js/target microsite/target core/.jvm/target project/target
 
       - name: Upload target directories
         uses: actions/upload-artifact@v2
@@ -107,9 +107,20 @@ jobs:
           tar xf targets.tar
           rm targets.tar
 
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 2.7
+
+      - run: gem install jekyll -v 4
+
       - env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
         run: sbt ++${{ matrix.scala }} ci-release
+
+      - if: matrix.scala == 2.12.13
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sbt ++${{ matrix.scala }} microsite/makeMicrosite

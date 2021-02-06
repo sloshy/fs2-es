@@ -1,4 +1,5 @@
-import xerial.sbt.Sonatype._
+import microsites._
+
 //Deps
 val agitationV = "0.2.0"
 val catsEffectV = "2.3.1"
@@ -14,7 +15,7 @@ val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core.js, core.jvm, docs, testing.js, testing.jvm)
+  .aggregate(core.js, core.jvm, microsite, testing.js, testing.jvm)
   .settings(
     commonSettings,
     publish / skip := true
@@ -49,13 +50,39 @@ lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pu
   )
   .dependsOn(core % "compile->compile;test->test")
 
-lazy val docs = (project in file("fs2-es-docs"))
+lazy val microsite = (project in file("microsite"))
   .settings(
     scalacOptions ~= filterConsoleScalacOptions,
-    publish / skip := true
+    publish / skip := true,
+    micrositeName := "FS2-ES",
+    micrositeDescription := "A small library for event-driven state and event-sourcing for FS2",
+    micrositeBaseUrl := "/fs2-es",
+    micrositeDocumentationUrl := "/fs2-es/docs",
+    micrositeAuthor := "Ryan Peters",
+    micrositeHomepage := "https://sloshy.github.io/fs2-es/",
+    micrositeOrganizationHomepage := "https://blog.rpeters.dev",
+    micrositeTwitterCreator := "@LiquidSloshalot",
+    micrositeExtraMdFiles := Map(
+      file("README.md") -> ExtraMdFileConfig(
+        "index.md",
+        "home",
+        Map("permalink" -> "/", "title" -> "Home")
+      )
+    ),
+    micrositeGithubOwner := "sloshy",
+    micrositeGithubRepo := "fs2-es",
+    micrositeGitterChannelUrl := "fs2-es/community",
+    micrositePalette := Map(
+      "brand-primary" -> "#871101",
+      "brand-secondary" -> "#da2f00",
+      "white-color" -> "#ffffff"
+    ),
+    micrositeHomeButtonTarget := "docs",
+    micrositePushSiteWith := GitHub4s,
+    micrositeGithubToken := sys.env.get("GITHUB_TOKEN")
   )
-  .dependsOn(testing.jvm)
-  .enablePlugins(MdocPlugin)
+  .dependsOn(core.jvm, testing.jvm)
+  .enablePlugins(MicrositesPlugin, MdocPlugin)
 
 ThisBuild / scalaVersion := scala213
 
@@ -73,8 +100,9 @@ ThisBuild / organization := "dev.rpeters"
 
 ThisBuild / githubWorkflowTargetTags ++= Seq("v*")
 ThisBuild / githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v")))
-ThisBuild / githubWorkflowPublish := Seq(WorkflowStep.Sbt(List("ci-release")))
 ThisBuild / githubWorkflowPublish := Seq(
+  WorkflowStep.Use(UseRef.Public("ruby", "setup-ruby", "v1"), Map("ruby-version" -> "2.7")),
+  WorkflowStep.Run(List("gem install jekyll -v 4")),
   WorkflowStep.Sbt(
     List("ci-release"),
     env = Map(
@@ -83,5 +111,10 @@ ThisBuild / githubWorkflowPublish := Seq(
       "SONATYPE_PASSWORD" -> "${{ secrets.SONATYPE_PASSWORD }}",
       "SONATYPE_USERNAME" -> "${{ secrets.SONATYPE_USERNAME }}"
     )
+  ),
+  WorkflowStep.Sbt(
+    List("microsite/makeMicrosite"),
+    cond = Some(s"matrix.scala == $scala212"),
+    env = Map("GITHUB_TOKEN" -> "${{ secrets.GITHUB_TOKEN }}")
   )
 )

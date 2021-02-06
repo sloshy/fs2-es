@@ -1,3 +1,8 @@
+---
+layout: docs
+title: Testing
+permalink: docs/testing/
+---
 # Testing
 Using FS2-ES, you might want to be able to more easily inspect the history and contents of your state.
 A concept that appears in event-based programming is the idea of "time-travel debugging", or the ability to go forward and back in time.
