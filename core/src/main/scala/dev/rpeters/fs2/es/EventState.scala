@@ -27,6 +27,9 @@ trait EventState[F[_], E, A] {
 
   /** The same as `hookup`, but also gives you the events passed through it as a tuple along with the resulting state. */
   def hookupWithInput: Pipe[F, E, (E, A)]
+
+  /** Feeds a stream of events into this `EventState` and returns the final state. */
+  def hydrate(hydrator: Stream[F, E])(implicit F: Sync[F]): F[Unit] = hydrator.through(hookup).compile.drain
 }
 
 /** An `EventState` implementation that lets you `subscribe` to incoming events. */
@@ -64,132 +67,89 @@ object EventState {
     * Example: `val ef: EventProcessor[String, String] = (newS, currentS) => currentS ++ newS`
     */
   type EventProcessor[E, A] = (E, A) => A
-  final class EventStatePartiallyApplied[F[_]: Sync]() {
-    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: Ref[F, A]) =
+  final class EventStatePartiallyApplied[F[_]: Sync, G[_]: Sync]() {
+    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: Ref[G, A]) =
       state.modify { internalA =>
         val next = ef(e, internalA)
         next -> next
       }
-    private def finalState[E, A](state: Ref[F, A], ef: EventProcessor[E, A]) =
-      new EventState[F, E, A] {
-        def doNext(e: E): F[A] = doNextInternal(e, ef, state)
-        def get: F[A] = state.get
-        def hookup: Pipe[F, E, A] = _.evalMap(doNext)
-        def hookupWithInput: Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
+    private def finalState[E, A](state: Ref[G, A], ef: EventProcessor[E, A]) =
+      new EventState[G, E, A] {
+        def doNext(e: E): G[A] = doNextInternal(e, ef, state)
+        def get: G[A] = state.get
+        def hookup: Pipe[G, E, A] = _.evalMap(doNext)
+        def hookupWithInput: Pipe[G, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
       }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
     def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
-      Ref[F].of(a).map { state =>
+      Ref.in[F, G, A](a).map { state =>
         finalState(state, ef)
       }
-
-    /** Gives you an `EventState` that is restored from an existing stream of events.
-      * The final `EventState` is returned upon completion of the hydrator stream.
-      * Useful for rebuilding state from persisted or generated events, such as for a specific entity.
-      */
-    def hydrated[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
-      Ref[F].of(initial).flatMap { state =>
-        hydrator.evalTap(doNextInternal(_, ef, state)).compile.drain >> finalState(state, ef).pure[F]
-      }
-
-    /** Like `hydrated`, but returns the result as an FS2 `Stream`. */
-    def hydratedStream[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
-      Stream.eval(Ref[F].of(initial)).flatMap { state =>
-        hydrator.evalTap(doNextInternal(_, ef, state)).last.as(finalState(state, ef))
-      }
   }
-  final class EventStateTopicPartiallyApplied[F[_]: Concurrent]() {
-    private def doNextInternal[E, A](e: E, state: Ref[F, A], ef: EventProcessor[E, A]) =
+  final class EventStateTopicPartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
+    private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: EventProcessor[E, A]) =
       state.updateAndGet(ef(e, _))
-    private def finalState[E, A](state: Ref[F, A], topic: Topic[F, A], ef: EventProcessor[E, A]) =
-      new EventStateTopic[F, E, A] {
-        def doNext(e: E): F[A] = doNextInternal(e, state, ef).flatMap(a => topic.publish1(a).as(a))
+    private def finalState[E, A](state: Ref[G, A], topic: Topic[G, A], ef: EventProcessor[E, A]) =
+      new EventStateTopic[G, E, A] {
+        def doNext(e: E): G[A] = doNextInternal(e, state, ef).flatMap(a => topic.publish1(a).as(a))
 
-        def get: F[A] = state.get
+        def get: G[A] = state.get
 
-        def hookup: Pipe[F, E, A] = _.evalMap(doNext)
+        def hookup: Pipe[G, E, A] = _.evalMap(doNext)
 
-        def hookupWithInput: Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
+        def hookupWithInput: Pipe[G, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
 
-        def subscribe: Stream[F, A] = topic.subscribe(1)
+        def subscribe: Stream[G, A] = topic.subscribe(1)
 
-        def hookupAndSubscribe: Pipe[F, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
+        def hookupAndSubscribe: Pipe[G, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
 
       }
 
     /** Gives you an `EventStateTopic` that is initialized to a starting value. */
     def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
       for {
-        state <- Ref[F].of(a)
-        topic <- Topic[F, A](a)
-      } yield finalState(state, topic, ef)
-
-    /** Gives you an `EventStateTopic` that is restored from an existing stream of events.
-      * The final `EventStateTopic` is returned upon completion of the hydrator stream.
-      * Useful for rebuilding state from persisted or generated events, such as for a specific entity.
-      */
-    def hydrated[E, A](a: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
-      for {
-        state <- Ref[F].of(a)
-        _ <- hydrator.evalTap(doNextInternal(_, state, ef)).compile.drain
-        topic <- state.get.flatMap(Topic.apply[F, A])
-      } yield finalState(state, topic, ef)
-
-    /** Like `hydrated`, but returns the result as an FS2 `Stream`. */
-    def hydratedStream[E, A](a: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
-      for {
-        state <- Stream.eval(Ref[F].of(a))
-        _ <- hydrator.evalTap(doNextInternal(_, state, ef)).last
-        topic <- Stream.eval(state.get.flatMap(Topic.apply[F, A]))
+        state <- Ref.in[F, G, A](a)
+        topic <- Topic.in[F, G, A](a)
       } yield finalState(state, topic, ef)
   }
-  final class SignallingEventStatePartiallyApplied[F[_]: Concurrent]() {
-    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: SignallingRef[F, A]) =
+  final class SignallingEventStatePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
+    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: SignallingRef[G, A]) =
       state.modify { internalA =>
         val next = ef(e, internalA)
         next -> next
       }
-    private def finalState[E, A](state: SignallingRef[F, A], ef: EventProcessor[E, A]) =
-      new SignallingEventState[F, E, A] {
-        def doNext(e: E): F[A] = doNextInternal(e, ef, state)
-        def get: F[A] = state.get
-        def continuous: Stream[F, A] = state.continuous
-        def discrete: Stream[F, A] = state.discrete
-        def hookup: Pipe[F, E, A] = _.evalMap(doNext)
-        def hookupWithInput: Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
+    private def finalState[E, A](state: SignallingRef[G, A], ef: EventProcessor[E, A]) =
+      new SignallingEventState[G, E, A] {
+        def doNext(e: E): G[A] = doNextInternal(e, ef, state)
+        def get: G[A] = state.get
+        def continuous: Stream[G, A] = state.continuous
+        def discrete: Stream[G, A] = state.discrete
+        def hookup: Pipe[G, E, A] = _.evalMap(doNext)
+        def hookupWithInput: Pipe[G, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
       }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
     def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
-      SignallingRef[F, A](a).map { state =>
+      SignallingRef.in[F, G, A](a).map { state =>
         finalState(state, ef)
-      }
-
-    /** Gives you an `EventState` that is restored from an existing stream of events.
-      * The final `EventState` is returned upon completion of the hydrator stream.
-      * Useful for rebuilding state from persisted or generated events, such as for a specific entity.
-      */
-    def hydrated[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
-      SignallingRef[F, A](initial).flatMap { state =>
-        hydrator.evalTap(doNextInternal(_, ef, state)).compile.drain >> finalState(state, ef).pure[F]
-      }
-
-    /** Like `hydrated`, but returns the result as an FS2 `Stream` */
-    def hydratedStream[E, A](initial: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
-      Stream.eval(SignallingRef[F, A](initial)).flatMap { state =>
-        hydrator.evalTap(doNextInternal(_, ef, state)).last.as(finalState(state, ef))
       }
   }
 
   /** Selects the set of constructors for a base `EventState`.
     * Also see `topic` and `signalling`.
     */
-  def apply[F[_]: Sync] = new EventStatePartiallyApplied[F]()
+  def apply[F[_]: Sync] = new EventStatePartiallyApplied[F, F]()
+
+  def in[F[_]: Sync, G[_]: Sync] = new EventStatePartiallyApplied[F, G]()
 
   /** Selects the set of constructors for an `EventStateTopic`, a variant of `EventState` that is subscribable. */
-  def topic[F[_]: Concurrent] = new EventStateTopicPartiallyApplied[F]()
+  def topic[F[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, F]()
+
+  def topicIn[F[_]: Sync, G[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, G]()
 
   /** Selects the set of constructors for a `SignallingEventState`, a variant of `EventState` that is continuously monitorable. */
-  def signalling[F[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F]()
+  def signalling[F[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, F]()
+
+  def signallingIn[F[_]: Sync, G[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, G]()
 }

@@ -43,9 +43,8 @@ object EventStateCache {
             val hydrateStream = keyHydrator(k)
             for {
               wasHydratedRef <- Ref[G].of(false)
-              es <-
-                EventState[G]
-                  .hydrated(initializer(k), hydrateStream.evalTap(_ => wasHydratedRef.set(true)))(eventProcessor)
+              es <- EventState[G].initial[E, A](initializer(k))(eventProcessor)
+              _ <- es.hydrate(hydrateStream.evalTap(_ => wasHydratedRef.set(true)))
               wasHydrated <- wasHydratedRef.get
               result <-
                 if (wasHydrated) {
