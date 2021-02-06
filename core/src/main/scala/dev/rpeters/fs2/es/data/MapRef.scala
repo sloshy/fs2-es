@@ -4,6 +4,7 @@ import cats.implicits._
 import cats.effect.concurrent.Ref
 import cats.effect.Sync
 
+/** A concurrent `Map` of values that you can modify without worrying about thread safety. */
 sealed trait MapRef[F[_], K, V] {
 
   /** Add a key/value pair to the map. Overwrites a value if it exists. */
