@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: Testing
-permalink: docs/testing/
+permalink: /docs/testing
 ---
 # Testing
 Using FS2-ES, you might want to be able to more easily inspect the history and contents of your state.

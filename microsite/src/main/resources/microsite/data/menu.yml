@@ -2,14 +2,14 @@ options:
   - title: Intro
     url: docs/
   - title: EventState
-    url: docs/eventstate/
+    url: docs/eventstate
   - title: ExpiringRef
-    url: docs/expiringref/
+    url: docs/expiringref
   - title: EventStateCache
-    url: docs/eventstatecache/
+    url: docs/eventstatecache
   - title: MapRef
-    url: docs/mapref/
+    url: docs/mapref
   - title: DeferredMap
-    url: docs/deferredmap/
+    url: docs/deferredmap
   - title: Testing
-    url: docs/testing/
+    url: docs/testing
