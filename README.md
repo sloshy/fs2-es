@@ -15,9 +15,9 @@ Currently Scala 2.12 and 2.13 are both supported. Project is built for Scala JVM
 ## Features
 This library has three core focuses:
 
-* [State Management](https://sloshy.github.io/fs2-es/docs/eventstate/) - Use "EventState" to model event-driven state that is safe, concurrent, and with no boilerplate.
-* [Event Sourcing](https://sloshy.github.io/fs2-es/docs/eventstatecache/) - Manage entities using event sourcing patterns with "EventStateCache", a standard repository interface.
-* [Test Utilities](https://sloshy.github.io/fs2-es/docs/testing/) - Utilize time-travel debugging features and other goodies to analyze your state as it changes.
+* [State Management](https://sloshy.github.io/fs2-es/docs/eventstate) - Use "EventState" to model event-driven state that is safe, concurrent, and with no boilerplate.
+* [Event Sourcing](https://sloshy.github.io/fs2-es/docs/eventstatecache) - Manage entities using event sourcing patterns with "EventStateCache", a standard repository interface.
+* [Test Utilities](https://sloshy.github.io/fs2-es/docs/testing) - Utilize time-travel debugging features and other goodies to analyze your state as it changes.
 
 Click any of the links above to go to the relevant parts of the documentation on our microsite.
 
