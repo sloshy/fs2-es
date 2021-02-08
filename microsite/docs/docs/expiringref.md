@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: ExpiringRef
-permalink: /docs/expiringref
+permalink: /docs/expiringref/
 ---
 # ExpiringRef
 Not directly related to events, but a useful primitive nonetheless, an `ExpiringRef` is a concurrently available value that expires after a certain period of time.

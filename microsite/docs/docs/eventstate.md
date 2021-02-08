@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: EventState
-permalink: /docs/eventstate
+permalink: /docs/eventstate/
 ---
 # EventState
 

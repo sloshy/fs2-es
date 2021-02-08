@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: DeferredMap
-permalink: /docs/deferredmap
+permalink: /docs/deferredmap/
 ---
 # DeferredMap
 A `DeferredMap` is a concurrent `MapRef` that is specifically optimized for awaiting asynchronous values that may not have completed yet.

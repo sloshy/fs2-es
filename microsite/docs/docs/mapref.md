@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: MapRef
-permalink: /docs/mapref
+permalink: /docs/mapref/
 ---
 # MapRef
 `MapRef` is used internally as a small wrapper around an immutable `Map` inside of a `cats.effect.concurrent.Ref`.

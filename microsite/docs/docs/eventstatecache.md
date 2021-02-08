@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: EventStateCache
-permalink: /docs/eventstatecache
+permalink: /docs/eventstatecache/
 ---
 # EventStateCache
 Now that we have abstractions for both event-sourced state and timed lifetime management, we can put the two together and automatically manage the lifetimes of `EventState` with `EventStateCache`.
