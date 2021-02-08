@@ -12,7 +12,7 @@ package dev.rpeters.fs2.es
   * 4. `getKey(modKey(a)(f))` should equal `f(getKey(a))` in cases where `f(getKey(a)) != getKey(a)`.\
   * 5. `getKey(setKey(initialize(k1))(k2)) != k1` and `getKey(setKey(initialize(k1))(k2)) == k2` when `k1 != k2`.
   */
-trait InitialKeyed[K, A] extends ModKeyed[K, A] {
+trait Initial[K, A] extends ModKeyed[K, A] {
 
   /** Initialize a value from a given key.
     *
@@ -22,27 +22,19 @@ trait InitialKeyed[K, A] extends ModKeyed[K, A] {
   def initialize(k: K): A
 }
 
-object InitialKeyed {
-  def apply[A, B](implicit instance: InitialKeyed[A, B]) = instance
+object Initial {
 
-  /** Define the relationship between your type `A` and `B`.
+  def apply[A, B](implicit instance: Initial[A, B]) = instance
+
+  /** Define the relationship between your type `A` and `B`.a
     *
     * @param initialF A function to initialize an `A` value from a key `K`.
     * @param getKeyF A function to extract the key `K` from an `A` value.
-    * @return An `InitialKeyed` representing the ability to initialize `A` values with `K` and extract `K` from arbitrary `A` values.
+    * @return An `Initialize` instance representing the ability to initialize `A` values with `K`.
     */
-  def instance[K, A](initialF: K => A)(getF: A => K)(setF: (A, K) => A) = new InitialKeyed[K, A] {
+  def instance[K, A](initialF: K => A)(getF: A => K)(setF: (A, K) => A) = new Initial[K, A] {
     def initialize(k: K): A = initialF(k)
     def getKey(a: A): K = getF(a)
     def setKey(a: A)(k: K) = setF(a, k)
-  }
-
-  implicit class initialKeyedOps[K, A](k: K)(implicit ev: InitialKeyed[K, A]) {
-
-    /** Initialize a value from this key.
-      *
-      * @return A value initialized by this key.
-      */
-    def initialize: A = ev.initialize(k)
   }
 }

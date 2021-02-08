@@ -26,13 +26,4 @@ object Keyed {
   def instance[K, A](f: A => K) = new Keyed[K, A] {
     def getKey(a: A): K = f(a)
   }
-
-  implicit class keyedOps[K, A](a: A)(implicit ev: Keyed[K, A]) {
-
-    /** Extract a key from a given value.
-      *
-      * @return A key that you extracted.
-      */
-    def getKey: K = ev.getKey(a)
-  }
 }
