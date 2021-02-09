@@ -1,7 +1,7 @@
 package dev.rpeters.fs2.es
 
 /** A typeclass defining the ability to extract a "key" from some value, where a "key" is some data you can derive from it.
-  * A weaker version of `ModKeyed` that only specifies the ability to extract a key, with no modification.
+  * A weaker version of `Initial` that only specifies the ability to extract a key, with no initialization.
   *
   * To be lawful, you only have to assert that `getKey(a) == getKey(a)` for all `a`.
   */

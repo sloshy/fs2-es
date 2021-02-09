@@ -46,29 +46,6 @@ object syntax {
     def initialize: A = ev.initialize(k)
   }
 
-  implicit class modKeyedOps[A, K](a: A)(implicit ev: ModKeyed[K, A]) {
-
-    /** Extract a key from a given value.
-      *
-      * @return A key value that you extracted.
-      */
-    def getKey = ev.getKey(a)
-
-    /** Modify the current key with a function.
-      *
-      * @param f The function applied to your key that may modify it.
-      * @return A value with a key that the supplied function might have modified.
-      */
-    def modKey(f: K => K) = ev.modKey(a)(f)
-
-    /** Set the key contained within a value.
-      *
-      * @param k The key you wish to set in place of the existing key.
-      * @return A value containing the key specified replacing the pre-existing key.
-      */
-    def setKey(k: K) = ev.setKey(a)(k)
-  }
-
   implicit class keyedOps[K, A](a: A)(implicit ev: Keyed[K, A]) {
 
     /** Extract a key from a given value.
