@@ -1,11 +1,12 @@
 package dev.rpeters.fs2.es
 
-import cats.implicits._
-import cats.effect._
+import cats.effect.{Concurrent, Sync}
 import cats.effect.concurrent.Ref
+import cats.syntax.all._
 import fs2.{Pipe, Stream}
 import fs2.concurrent.SignallingRef
 import fs2.concurrent.Topic
+import syntax._
 
 /** An atomic reference that can only be modified through a linear application of events.
   * When you create one, all events are processed with the pre-supplied function you give it during construction.
@@ -82,10 +83,24 @@ object EventState {
       }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
-      Ref.in[F, G, A](a).map { state =>
-        finalState(state, ef)
-      }
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](a.some)
+      } yield finalState(state, (event, state) => state.flatMap(_.handleEvent(event)))
+
+    /** Gives you an `EventState` that is initialized to a starting value and cannot be deleted.
+      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
+      */
+    def initialDefault[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, A]] =
+      for {
+        state <- Ref.in[F, G, A](a)
+      } yield finalState(state, (event, state) => state.handleEventOrDefault(event))
+
+    /** Gives you an `EventState` that is not yet initialized. */
+    def empty[E, A](implicit ev: DrivenInitial[E, A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](none)
+      } yield finalState(state, (event, state) => state.handleEvent(event))
   }
   final class EventStateTopicPartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
     private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: EventProcessor[E, A]) =
@@ -107,11 +122,27 @@ object EventState {
       }
 
     /** Gives you an `EventStateTopic` that is initialized to a starting value. */
-    def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](a.some)
+        topic <- Topic.in[F, G, Option[A]](a.some)
+      } yield finalState(state, topic, (event, state) => state.flatMap(_.handleEvent(event)))
+
+    /** Gives you an `EventStateTopic` that is initialized to a starting value and cannot be deleted.
+      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
+      */
+    def initialDefault[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, A]] =
       for {
         state <- Ref.in[F, G, A](a)
         topic <- Topic.in[F, G, A](a)
-      } yield finalState(state, topic, ef)
+      } yield finalState(state, topic, (event, state) => state.handleEventOrDefault(event))
+
+    /** Gives you an `EventStateTopic` that is not yet initialized. */
+    def empty[E, A](implicit ev: DrivenInitial[E, A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](none)
+        topic <- Topic.in[F, G, Option[A]](none)
+      } yield finalState(state, topic, (event, state) => state.handleEvent(event))
   }
   final class SignallingEventStatePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
     private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: SignallingRef[G, A]) =
@@ -129,11 +160,25 @@ object EventState {
         def hookupWithInput: Pipe[G, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
       }
 
-    /** Gives you an `EventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
-      SignallingRef.in[F, G, A](a).map { state =>
-        finalState(state, ef)
-      }
+    /** Gives you a `SignallingEventState` that is initialized to a starting value. */
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- SignallingRef.in[F, G, Option[A]](a.some)
+      } yield finalState(state, (event, state) => state.flatMap(_.handleEvent(event)))
+
+    /** Gives you a `SignallingEventState` that is initialized to a starting value and cannot be deleted.
+      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
+      */
+    def initialDefault[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, A]] =
+      for {
+        state <- SignallingRef.in[F, G, A](a)
+      } yield finalState(state, (event, state) => state.handleEventOrDefault(event))
+
+    /** Gives you a `SignallingEventState` that is not yet initialized. */
+    def empty[E, A](implicit ev: DrivenInitial[E, A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- SignallingRef.in[F, G, Option[A]](none)
+      } yield finalState(state, (event, state) => state.handleEvent(event))
   }
 
   /** Selects the set of constructors for a base `EventState`.
