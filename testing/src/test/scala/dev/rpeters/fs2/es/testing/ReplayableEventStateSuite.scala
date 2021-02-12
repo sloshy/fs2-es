@@ -1,15 +1,18 @@
 package dev.rpeters.fs2.es.testing
 
+import cats.data.Chain
 import cats.effect.IO
 import cats.implicits._
-import dev.rpeters.fs2.es.BaseTestSpec
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import cats.data.Chain
+import dev.rpeters.fs2.es.{BaseTestSpec, Driven}
 
 class ReplayableEventStateSuite extends BaseTestSpec {
 
-  def newEs = ReplayableEventState[IO].initial[Int, Int](0)(_ + _)
+  implicit val driven: Driven[Int, Int] = new Driven[Int, Int] {
+    def handleEvent(a: Int)(e: Int): Option[Int] = (a + e).some
+    def handleEvent(optA: Option[Int])(e: Int): Option[Int] = optA.map(_ + e)
+  }
+
+  def newEs = ReplayableEventState[IO].initialDefault[Int, Int](0)
 
   test("increment event count") {
     val program = for {
@@ -20,7 +23,7 @@ class ReplayableEventStateSuite extends BaseTestSpec {
       count <- es.getEventCount
     } yield count
 
-    program.unsafeToFuture().map(c => assertEquals(c, 3))
+    program.flatMap(c => IO(assertEquals(c, 3)))
   }
 
   test("get events") {
@@ -34,10 +37,9 @@ class ReplayableEventStateSuite extends BaseTestSpec {
       eventsTwo <- es.getEvents
     } yield (eventsOne, eventsTwo)
 
-    program.unsafeToFuture().map {
-      case (one, two) =>
-        assertEquals(one, Chain(1, 1, 1))
-        assertEquals(two, Chain.empty)
+    program.map { case (one, two) =>
+      IO(assertEquals(one, Chain(1, 1, 1))) >>
+        IO(assertEquals(two, Chain.empty))
     }
   }
 
@@ -53,11 +55,10 @@ class ReplayableEventStateSuite extends BaseTestSpec {
       index3 <- es.getIndex
     } yield (index1, index2, index3)
 
-    program.unsafeToFuture().map {
-      case (one, two, three) =>
-        assertEquals(one, 0)
-        assertEquals(two, 3)
-        assertEquals(three, 0)
+    program.map { case (one, two, three) =>
+      IO(assertEquals(one, 0)) >>
+        IO(assertEquals(two, 3)) >>
+        IO(assertEquals(three, 0))
     }
   }
 
@@ -76,13 +77,12 @@ class ReplayableEventStateSuite extends BaseTestSpec {
       newState <- es.get
     } yield (events1, events2, events3, oldState, newState)
 
-    program.unsafeToFuture().map {
-      case (one, two, three, oldState, newState) =>
-        assertEquals(one, Chain(1, 1, 1))
-        assertEquals(two, Chain.empty)
-        assertEquals(three, Chain.empty)
-        assertEquals(oldState, 0)
-        assertEquals(newState, 5)
+    program.map { case (one, two, three, oldState, newState) =>
+      IO(assertEquals(one, Chain(1, 1, 1))) >>
+        IO(assertEquals(two, Chain.empty)) >>
+        IO(assertEquals(three, Chain.empty)) >>
+        IO(assertEquals(oldState, 0)) >>
+        IO(assertEquals(newState, 5))
     }
   }
 
@@ -95,10 +95,9 @@ class ReplayableEventStateSuite extends BaseTestSpec {
       index2 <- es.getIndex
     } yield (index1, index2)
 
-    program.unsafeToFuture().map {
-      case (one, two) =>
-        assertEquals(one, 1)
-        assertEquals(two, 0)
+    program.map { case (one, two) =>
+      IO(assertEquals(one, 1)) >>
+        IO(assertEquals(two, 0))
     }
   }
 }

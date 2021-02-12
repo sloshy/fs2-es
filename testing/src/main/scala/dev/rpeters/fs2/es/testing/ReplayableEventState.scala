@@ -2,14 +2,14 @@ package dev.rpeters.fs2.es.testing
 
 import cats.FlatMap
 import cats.data.Chain
-import cats.effect.Concurrent
-import cats.implicits._
+import cats.effect.{Concurrent, Sync}
+import cats.syntax.all._
 import cats.effect.concurrent.Ref
 import dev.rpeters.fs2.es.EventState.EventProcessor
-import dev.rpeters.fs2.es.EventState
-import dev.rpeters.fs2.es.EventStateTopic
+import dev.rpeters.fs2.es._
 import fs2.{Pipe, Stream}
 import fs2.concurrent.Topic
+import syntax._
 
 /** A wrapper around an `EventStateTopic` for debugging purposes.
   * Stores events added using an internal event log that you can seek forward and back in.
@@ -61,9 +61,9 @@ trait ReplayableEventState[F[_], E, A] extends EventStateTopic[F, E, A] {
 
 object ReplayableEventState {
   private final case class InternalState[E, A](events: Chain[E] = Chain.empty, index: Int = 0)
-  final class ReplayableEventStatePartiallyApplied[F[_]: Concurrent]() {
+  final class ReplayableEventStatePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
 
-    private def doNextInternal[E, A](e: E, state: Ref[F, A], ef: EventProcessor[E, A]) =
+    private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: EventProcessor[E, A]) =
       state.updateAndGet(ef(e, _))
 
     private def updateInternalState[E, A](s: InternalState[E, A], e: E) =
@@ -74,49 +74,45 @@ object ReplayableEventState {
       }
 
     private def finalState[E, A](
-        initial: Ref[F, A],
-        internalState: Ref[F, InternalState[E, A]],
-        state: Ref[F, A],
-        topic: Topic[F, A],
+        initial: Ref[G, A],
+        internalState: Ref[G, InternalState[E, A]],
+        state: Ref[G, A],
+        topic: Topic[G, A],
         ef: EventProcessor[E, A]
-    ): ReplayableEventState[F, E, A] =
-      new ReplayableEventState[F, E, A] {
-        def doNext(e: E): F[A] =
+    ): ReplayableEventState[G, E, A] =
+      new ReplayableEventState[G, E, A] {
+        def doNext(e: E): G[A] =
           for {
             a <- doNextInternal(e, state, ef)
             _ <- internalState.update(s => updateInternalState(s, e))
             _ <- topic.publish1(a)
           } yield a
 
-        val get: F[A] = state.get
+        val get: G[A] = state.get
 
-        val hookup: Pipe[F, E, A] = _.evalMap(doNext)
+        val subscribe: Stream[G, A] = topic.subscribe(1)
 
-        val hookupWithInput: Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
+        val hookupAndSubscribe: Pipe[G, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
 
-        val subscribe: Stream[F, A] = topic.subscribe(1)
+        val getEventCount: G[Int] = internalState.get.map(_.events.size.toInt)
 
-        val hookupAndSubscribe: Pipe[F, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
+        val getEvents: G[Chain[E]] = internalState.get.map(_.events)
 
-        val getEventCount: F[Int] = internalState.get.map(_.events.size.toInt)
+        val getIndex: G[Int] = internalState.get.map(_.index)
 
-        val getEvents: F[Chain[E]] = internalState.get.map(_.events)
-
-        val getIndex: F[Int] = internalState.get.map(_.index)
-
-        val reset: F[A] = initial.get
+        val reset: G[A] = initial.get
           .flatTap(_ => internalState.set(InternalState(Chain.empty)))
           .flatTap(state.set)
           .flatTap(topic.publish1)
 
-        def resetInitial(a: A): F[A] =
+        def resetInitial(a: A): G[A] =
           internalState
             .set(InternalState(Chain.empty))
             .flatTap(_ => state.set(a))
             .flatTap(_ => topic.publish1(a))
             .as(a)
 
-        def seekTo(n: Int): F[A] =
+        def seekTo(n: Int): G[A] =
           internalState.modify { s =>
             val eventsToApply = s.events.toList.take(n)
             val thenDo = for {
@@ -129,28 +125,48 @@ object ReplayableEventState {
 
       }
 
-    /** Creates a `ReplayableEventState` with the given starting value. */
-    def initial[E, A](a: A)(ef: EventProcessor[E, A]) =
+    /** Creates a `ReplayableEventState` that is initialized to a starting value. */
+    def initial[E, A](a: A)(implicit driven: DrivenNonEmpty[E, A]): F[ReplayableEventState[G, E, Option[A]]] =
       for {
-        initial <- Ref[F].of(a)
-        internal <- Ref[F].of(InternalState[E, A]())
-        state <- Ref[F].of(a)
-        topic <- Topic[F, A](a)
-      } yield finalState(initial, internal, state, topic, ef)
+        initial <- Ref.in[F, G, Option[A]](a.some)
+        internal <- Ref.in[F, G, InternalState[E, Option[A]]](InternalState())
+        state <- Ref.in[F, G, Option[A]](a.some)
+        topic <- Topic.in[F, G, Option[A]](a.some)
+      } yield finalState(
+        initial,
+        internal,
+        state,
+        topic,
+        (event, state) => state.flatMap(_.handleEvent(event))
+      )
 
-    /** Creates a `ReplayableEventState` that is restored from an existing stream of events. */
-    def hydrated[E, A](a: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
+    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted.
+      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
+      */
+    def initialDefault[E, A](a: A)(implicit driven: DrivenNonEmpty[E, A]): F[ReplayableEventState[G, E, A]] =
       for {
-        result <- initial(a)(ef)
-        _ <- hydrator.through(result.hookup).compile.drain
-      } yield result
+        initial <- Ref.in[F, G, A](a)
+        internal <- Ref.in[F, G, InternalState[E, A]](InternalState())
+        state <- Ref.in[F, G, A](a)
+        topic <- Topic.in[F, G, A](a)
+      } yield finalState(
+        initial,
+        internal,
+        state,
+        topic,
+        (event, state) => state.handleEventOrDefault(event)
+      )
 
-    /** Like `hydrated`, but returns the result in an FS2 `Stream`. */
-    def hydratedStream[E, A](a: A, hydrator: Stream[F, E])(ef: EventProcessor[E, A]) =
+    /** Creates a `ReplayableEventState` that is not yet initialized. */
+    def empty[E, A](implicit ev: Driven[E, A]): F[ReplayableEventState[G, E, Option[A]]] =
       for {
-        result <- Stream.eval(initial(a)(ef))
-        _ <- hydrator.evalTap(result.doNext).last
-      } yield result
+        initial <- Ref.in[F, G, Option[A]](none)
+        internal <- Ref.in[F, G, InternalState[E, Option[A]]](InternalState())
+        state <- Ref.in[F, G, Option[A]](none)
+        topic <- Topic.in[F, G, Option[A]](none)
+      } yield finalState(initial, internal, state, topic, (event, state) => state.handleEvent(event))
   }
-  def apply[F[_]: Concurrent] = new ReplayableEventStatePartiallyApplied[F]()
+  def apply[F[_]: Concurrent] = new ReplayableEventStatePartiallyApplied[F, F]()
+
+  def in[F[_]: Sync, G[_]: Concurrent] = new ReplayableEventStatePartiallyApplied[F, G]()
 }
