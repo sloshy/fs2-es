@@ -5,6 +5,8 @@ val agitationV = "0.2.0"
 val catsEffectV = "2.3.1"
 val fs2V = "2.5.0"
 val munitV = "0.7.21"
+val munitCatsEffectV = "0.11.0"
+val scalacheckEffectV = "0.7.0"
 
 val scala213 = "2.13.4"
 val scala212 = "2.12.13"
@@ -29,7 +31,9 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % agitationV,
       "org.typelevel" %%% "cats-effect-laws" % catsEffectV % Test,
-      "org.scalameta" %%% "munit-scalacheck" % munitV % Test
+      "org.scalameta" %%% "munit-scalacheck" % munitV % Test,
+      "org.typelevel" %%% "munit-cats-effect-2" % munitCatsEffectV % "test",
+      "org.typelevel" %%% "scalacheck-effect-munit" % scalacheckEffectV % "test"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq(scala212, scala213)

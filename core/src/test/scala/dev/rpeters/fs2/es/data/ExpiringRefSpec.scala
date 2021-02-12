@@ -1,16 +1,17 @@
 package dev.rpeters.fs2.es.data
 
-import cats.implicits._
 import cats.effect.IO
-import scala.concurrent.duration._
-import scala.util.Try
+import cats.effect.concurrent.{Deferred, Ref}
+import cats.syntax.all._
 import dev.rpeters.fs2.es.BaseTestSpec
 
+import scala.util.Try
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits._
-import cats.effect.concurrent.Ref
-import cats.effect.concurrent.Deferred
 
 class ExpiringRefSpec extends BaseTestSpec {
+
+  implicit val timer = munitTimer
 
   test("should last as long as the specified duration") {
     val program = for {
@@ -27,10 +28,9 @@ class ExpiringRefSpec extends BaseTestSpec {
     tc.tick(4.seconds)
     tc.tick(6.seconds)
 
-    running.map {
-      case (firstTry, secondTry) =>
-        assert(firstTry.isDefined)
-        assert(!secondTry.isDefined)
+    running.map { case (firstTry, secondTry) =>
+      assert(firstTry.isDefined)
+      assert(!secondTry.isDefined)
     }
   }
   test("should not expire if the specified duration does not occur between uses") {
