@@ -143,10 +143,10 @@ trait EventLog[F[_], In, Out] { self =>
 object EventLog {
 
   /** Create an in-memory `EventLog`. */
-  def inMemory[F[_]: Sync, E](initial: E) = inMemory[F, F, E](initial)
+  def inMemory[F[_]: Sync, E] = inMemory[F, F, E]
 
   /** Create an in-memory `EventLog` using two different effect types. */
-  def inMemory[F[_]: Sync, G[_]: Sync, E](initial: E) = Ref.in[F, G, Chain[E]](Chain.nil).map { ref =>
+  def inMemory[F[_]: Sync, G[_]: Sync, E] = Ref.in[F, G, Chain[E]](Chain.nil).map { ref =>
     new EventLog[G, E, E] {
       def add(e: E): G[Unit] = ref.update(_ :+ e)
       def stream: Stream[G, E] =
