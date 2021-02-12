@@ -1,5 +1,6 @@
 package dev.rpeters.fs2.es
 
+import cats.Functor
 import cats.effect.{Concurrent, Sync}
 import cats.effect.concurrent.Ref
 import cats.syntax.all._
@@ -24,10 +25,10 @@ trait EventState[F[_], E, A] {
     * The resulting stream should be equivalent to a stream of all changes in state unless there are multiple hookups.
     * When in doubt, apply the Single Writer Principle and only use a single stream to apply updates unless this is not important.
     */
-  def hookup: Pipe[F, E, A]
+  def hookup: Pipe[F, E, A] = _.evalMap(doNext)
 
   /** The same as `hookup`, but also gives you the events passed through it as a tuple along with the resulting state. */
-  def hookupWithInput: Pipe[F, E, (E, A)]
+  def hookupWithInput(implicit F: Functor[F]): Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
 
   /** Feeds a stream of events into this `EventState` and returns the final state. */
   def doNextStream(eventStream: Stream[F, E])(implicit F: Sync[F]): F[Unit] = eventStream.through(hookup).compile.drain
@@ -78,8 +79,6 @@ object EventState {
       new EventState[G, E, A] {
         def doNext(e: E): G[A] = doNextInternal(e, ef, state)
         def get: G[A] = state.get
-        def hookup: Pipe[G, E, A] = _.evalMap(doNext)
-        def hookupWithInput: Pipe[G, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
       }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
@@ -108,17 +107,9 @@ object EventState {
     private def finalState[E, A](state: Ref[G, A], topic: Topic[G, A], ef: EventProcessor[E, A]) =
       new EventStateTopic[G, E, A] {
         def doNext(e: E): G[A] = doNextInternal(e, state, ef).flatMap(a => topic.publish1(a).as(a))
-
         def get: G[A] = state.get
-
-        def hookup: Pipe[G, E, A] = _.evalMap(doNext)
-
-        def hookupWithInput: Pipe[G, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
-
         def subscribe: Stream[G, A] = topic.subscribe(1)
-
         def hookupAndSubscribe: Pipe[G, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
-
       }
 
     /** Gives you an `EventStateTopic` that is initialized to a starting value. */
@@ -156,8 +147,6 @@ object EventState {
         def get: G[A] = state.get
         def continuous: Stream[G, A] = state.continuous
         def discrete: Stream[G, A] = state.discrete
-        def hookup: Pipe[G, E, A] = _.evalMap(doNext)
-        def hookupWithInput: Pipe[G, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
       }
 
     /** Gives you a `SignallingEventState` that is initialized to a starting value. */
