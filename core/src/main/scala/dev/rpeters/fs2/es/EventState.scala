@@ -30,7 +30,7 @@ trait EventState[F[_], E, A] {
   def hookupWithInput: Pipe[F, E, (E, A)]
 
   /** Feeds a stream of events into this `EventState` and returns the final state. */
-  def hydrate(hydrator: Stream[F, E])(implicit F: Sync[F]): F[Unit] = hydrator.through(hookup).compile.drain
+  def doNextStream(eventStream: Stream[F, E])(implicit F: Sync[F]): F[Unit] = eventStream.through(hookup).compile.drain
 }
 
 /** An `EventState` implementation that lets you `subscribe` to incoming events. */
