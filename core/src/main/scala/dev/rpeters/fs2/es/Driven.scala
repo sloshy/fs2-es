@@ -1,51 +1,45 @@
 package dev.rpeters.fs2.es
 
 import cats.syntax.all._
+import syntax._
 
-/** A typeclass for applying events to a known value.
+/** Defines a type that can be initialized or modified by incoming events.
   *
-  * This is the weaker sibling of `DrivenInitial` that requires an initial value be present.
-  *
-  * @param E The type of events.
+  * @param E The type of the events.
   * @param A The type of state the events are applied to.
   */
-trait Driven[E, A] {
+trait Driven[E, A] extends DrivenNonEmpty[E, A] {
 
-  /** Apply events to a known value of state.
+  /** Defines how you apply an event `E` to a value `A` that may or may not exist.
     *
-    * If the value is `Some[A]`, the state is either modified or untouched.
-    * If the value is `None`, the state is deleted/removed.
+    * If a state does not exist and it is created, that indicates it was "initialized" by some starting event.
+    * If a state does exist but `None` is returned after applying this function, that state was removed/deleted.
     *
-    * For initializing states, see `handleEvent` on `DrivenInitial`, which requires extracting a key from an event.
-    *
-    * @param a Your initial state value you are applying events to.
-    * @param e The events being applied to your state.
-    * @return An `Option` of your resulting state, whether or not it still exists.
+    * @param optA An optional value representing a possibly-existing state to modify with events.
+    * @param e An event to apply to your optional state.
+    * @return A new optional value that might be modified as a result of your event.
     */
-  def handleEvent(a: A)(e: E): Option[A]
-
-  /** Apply an event to a known value of state.
-    *
-    * Like `handleEvent`, but if an event "deletes" your initial state by returning `None`, resets it to the initial value.
-    *
-    * For initializing states, see `handleEvent` on `DrivenInitial`, which requires extracting a key from an event.
-    *
-    * @param a Your initial state value you are applying events to.
-    * @param e The events being applied to your state.
-    * @return An `Option` of your resulting state, whether or not it still exists.
-    */
-  def handleEventOrDefault(a: A)(e: E): A = handleEvent(a)(e).getOrElse(a)
+  def handleEvent(optA: Option[A])(e: E): Option[A]
 }
 
 object Driven {
+
   def apply[E, A](implicit instance: Driven[E, A]) = instance
 
-  /** Define how your state responds to events.
+  /** Define how to apply events to an optional value of this type
     *
-    * @param f A partial function that maps certain events to certain states, and produces new states.
-    * @return A new state that might have been derived from the supplied event.
+    * @param canInitialize A function that determines what events can be used to initialize state
+    * @param f Given an event and an optional state, apply it to that state.
+    * @return An instance of `DrivenInitial` for your state type.
     */
-  def instance[E, A](f: PartialFunction[(E, A), Option[A]]) = new Driven[E, A] {
-    def handleEvent(a: A)(e: E): Option[A] = f.lift(e -> a).getOrElse(a.some)
-  }
+  def instance[K, E, A](
+      canInitialize: E => Boolean
+  )(f: PartialFunction[(E, A), Option[A]])(implicit initial: Initial[K, A], keyed: Keyed[K, E]) =
+    new Driven[E, A] {
+      def handleEvent(optA: Option[A])(e: E): Option[A] = optA match {
+        case None    => if (canInitialize(e)) e.getKey.initialize.some else none
+        case Some(a) => handleEvent(a)(e)
+      }
+      def handleEvent(a: A)(e: E): Option[A] = f.lift(e -> a).flatten
+    }
 }

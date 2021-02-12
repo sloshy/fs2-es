@@ -56,7 +56,7 @@ object EventStateCache {
         log: EventLog[G, E, E],
         dur: FiniteDuration = 2.minutes,
         existenceCheck: K => G[Boolean] = (_: K) => true.pure[G]
-    )(implicit driven: DrivenInitial[E, A], keyed: Keyed[K, E], timer: Timer[G]) = for {
+    )(implicit keyedState: KeyedState[K, E, A], timer: Timer[G]) = for {
       deferredMap <- DeferredMap.in[F, G].tryableEmpty[K, Option[ExpiringRef[G, EventState[G, E, Option[A]]]]]
     } yield new EventStateCache[G, K, E, A] {
       private def useEventState[B](k: K)(f: EventState[G, E, Option[A]] => G[B]): G[Option[B]] = {

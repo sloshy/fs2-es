@@ -42,7 +42,7 @@ trait EventLog[F[_], In, Out] { self =>
     * @param DrivenInitial Evidence that you can apply events to both empty and known states.
     * @return A singleton stream of a final state value, assuming it exists.
     */
-  def getState[A](implicit drivenInitial: DrivenInitial[Out, A]): Stream[F, Option[A]] =
+  def getState[A](implicit driven: Driven[Out, A]): Stream[F, Option[A]] =
     stream.fold(none[A])(_.handleEvent(_))
 
   /** Computes a final state value from your event log, starting with an initial state.
@@ -51,7 +51,7 @@ trait EventLog[F[_], In, Out] { self =>
     * @param driven Evidence that you can apply events to a known state.
     * @return A singleton stream of a final state value after applying all events to your starting state.
     */
-  def getState[A](initial: A)(implicit driven: Driven[Out, A]): Stream[F, Option[A]] =
+  def getState[A](initial: A)(implicit driven: DrivenNonEmpty[Out, A]): Stream[F, Option[A]] =
     stream.fold(initial.some) { (state, event) => state.flatMap(_.handleEvent(event)) }
 
   /** Gets a single state as defined by the key you are filtering by.
@@ -63,7 +63,7 @@ trait EventLog[F[_], In, Out] { self =>
     */
   def getOneState[A, K](
       key: K
-  )(implicit keyed: Keyed[K, Out], drivenInitial: DrivenInitial[Out, A]): Stream[F, Option[A]] =
+  )(implicit keyedState: KeyedState[K, Out, A]): Stream[F, Option[A]] =
     stream.filter(_.getKey == key).fold(none[A])(_.handleEvent(_))
 
   /** Gets a single state as defined by the key you are filtering by and an initial state.
@@ -74,10 +74,7 @@ trait EventLog[F[_], In, Out] { self =>
     * @param driven Evidence that you can apply events to a known state value.
     * @return A singleton stream of your final state value after applying all events to your starting state.
     */
-  def getOneState[A, K](initial: A, key: K)(implicit
-      keyed: Keyed[K, Out],
-      driven: Driven[Out, A]
-  ): Stream[F, Option[A]] =
+  def getOneState[A, K](initial: A, key: K)(implicit keyedState: KeyedStateNonEmpty[K, Out, A]): Stream[F, Option[A]] =
     stream.filter(_.getKey == key).fold(initial.some) { (state, event) => state.flatMap(_.handleEvent(event)) }
 
   /** Computes final state values from your event log and groups them by-key.
@@ -86,7 +83,7 @@ trait EventLog[F[_], In, Out] { self =>
     * @param DrivenInitial Evidence that you can apply events to both empty and known states.
     * @return A singleton stream of all final states grouped by-key from this event log.
     */
-  def getKeyedState[K, A](implicit keyed: Keyed[K, Out], drivenInitial: DrivenInitial[Out, A]): Stream[F, Map[K, A]] =
+  def getKeyedState[K, A](implicit keyedState: KeyedState[K, Out, A]): Stream[F, Map[K, A]] =
     stream.fold(Map.empty[K, A]) { (stateMap, event) =>
       val key = event.getKey
       stateMap.get(key).handleEvent(event) match {
@@ -107,7 +104,7 @@ trait EventLog[F[_], In, Out] { self =>
     */
   def getKeyedState[K, A](
       initial: NonEmptyMap[K, A]
-  )(implicit keyed: Keyed[K, Out], driven: Driven[Out, A]): Stream[F, NonEmptyMap[K, A]] =
+  )(implicit keyedState: KeyedStateNonEmpty[K, Out, A]): Stream[F, NonEmptyMap[K, A]] =
     stream.fold(initial) { (stateMap, event) =>
       val key = event.getKey
       stateMap(key) match {

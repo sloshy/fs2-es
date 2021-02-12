@@ -2,7 +2,7 @@ package dev.rpeters.fs2.es
 
 object syntax {
 
-  implicit class DrivenInitialOps[A, E](optA: Option[A])(implicit ev: DrivenInitial[E, A]) {
+  implicit class drivenOps[A, E](optA: Option[A])(implicit ev: Driven[E, A]) {
 
     /** Apply an event to this state value that may not exist.
       *
@@ -15,7 +15,7 @@ object syntax {
     def handleEvent(e: E): Option[A] = ev.handleEvent(optA)(e)
   }
 
-  implicit class drivenOps[A, E](a: A)(implicit ev: Driven[E, A]) {
+  implicit class drivenNonEmptyOps[A, E](a: A)(implicit ev: DrivenNonEmpty[E, A]) {
 
     /** Apply an event to this state value.
       *
