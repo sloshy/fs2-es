@@ -114,7 +114,7 @@ object EventState {
       }
 
     /** Gives you an `EventStateTopic` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventStateTopic[G, E, Option[A]]] =
       for {
         state <- Ref.in[F, G, Option[A]](a.some)
         topic <- Topic.in[F, G, Option[A]](a.some)
@@ -123,14 +123,14 @@ object EventState {
     /** Gives you an `EventStateTopic` that is initialized to a starting value and cannot be deleted.
       * In the event that an event would otherwise "delete" your state, it keeps the current state value.
       */
-    def initialDefault[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[G, E, A]] =
+    def initialDefault[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventStateTopic[G, E, A]] =
       for {
         state <- Ref.in[F, G, A](a)
         topic <- Topic.in[F, G, A](a)
       } yield finalState(state, topic, (event, state) => state.handleEventOrDefault(event))
 
     /** Gives you an `EventStateTopic` that is not yet initialized. */
-    def empty[E, A](implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
+    def empty[E, A](implicit ev: Driven[E, A]): F[EventStateTopic[G, E, Option[A]]] =
       for {
         state <- Ref.in[F, G, Option[A]](none)
         topic <- Topic.in[F, G, Option[A]](none)
@@ -151,7 +151,7 @@ object EventState {
       }
 
     /** Gives you a `SignallingEventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[SignallingEventState[G, E, Option[A]]] =
       for {
         state <- SignallingRef.in[F, G, Option[A]](a.some)
       } yield finalState(state, (event, state) => state.flatMap(_.handleEvent(event)))
@@ -159,13 +159,13 @@ object EventState {
     /** Gives you a `SignallingEventState` that is initialized to a starting value and cannot be deleted.
       * In the event that an event would otherwise "delete" your state, it keeps the current state value.
       */
-    def initialDefault[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[G, E, A]] =
+    def initialDefault[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[SignallingEventState[G, E, A]] =
       for {
         state <- SignallingRef.in[F, G, A](a)
       } yield finalState(state, (event, state) => state.handleEventOrDefault(event))
 
     /** Gives you a `SignallingEventState` that is not yet initialized. */
-    def empty[E, A](implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
+    def empty[E, A](implicit ev: Driven[E, A]): F[SignallingEventState[G, E, Option[A]]] =
       for {
         state <- SignallingRef.in[F, G, Option[A]](none)
       } yield finalState(state, (event, state) => state.handleEvent(event))
