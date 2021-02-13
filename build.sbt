@@ -5,7 +5,7 @@ val agitationV = "0.2.0"
 val catsEffectV = "2.3.1"
 val fs2V = "2.5.0"
 val munitV = "0.7.21"
-val munitCatsEffectV = "0.11.0"
+val munitCatsEffectV = "0.13.0"
 val scalacheckEffectV = "0.7.0"
 
 val scala213 = "2.13.4"
