@@ -1,24 +1,28 @@
 package dev.rpeters.fs2.es.data
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO, Timer}
 import cats.effect.concurrent.{Deferred, Ref}
+import cats.effect.laws.util.TestContext
 import cats.syntax.all._
 import dev.rpeters.fs2.es.BaseTestSpec
 
 import scala.util.Try
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits._
+import munit.FunSuite
 
-class ExpiringRefSpec extends BaseTestSpec {
+class ExpiringRefSpec extends FunSuite {
 
-  implicit val timer = munitTimer
+  val tc = TestContext()
+  implicit val munitContextShift: ContextShift[IO] = tc.contextShift[IO]
+  implicit val munitTimer: Timer[IO] = tc.timer[IO]
 
   test("should last as long as the specified duration") {
     val program = for {
       eph <- ExpiringRef[IO].timed(1, 5.seconds)
-      _ <- timer.sleep(4.seconds)
+      _ <- Timer[IO].sleep(4.seconds)
       firstTry <- eph.use(_ => IO.unit)
-      _ <- timer.sleep(6.seconds)
+      _ <- Timer[IO].sleep(6.seconds)
       secondTry <- eph.use(_ => IO.unit)
       _ <- eph.expired
     } yield (firstTry, secondTry)

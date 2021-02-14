@@ -1,14 +1,21 @@
 package dev.rpeters.fs2.es.data
 
 import cats.implicits._
-import cats.effect.IO
+import cats.effect._
 import cats.effect.concurrent.Deferred
+import cats.effect.laws.util.TestContext
 import dev.rpeters.fs2.es.BaseTestSpec
+import munit.FunSuite
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits._
+class DeferredMapSpec extends FunSuite {
 
-class DeferredMapSpec extends BaseTestSpec {
+  //TODO: expand tests for tryable
+
+  val tc = TestContext()
+  implicit val cs: ContextShift[IO] = tc.contextShift[IO]
+  implicit val timer: Timer[IO] = tc.timer[IO]
 
   private def newMap = DeferredMap[IO].empty[String, String]
   // private def newMapTryable = DeferredMap[IO].tryableEmpty[String, String]
