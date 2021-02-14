@@ -135,7 +135,7 @@ trait EventLog[F[_], In, Out] { self =>
     * @return A new `EventLog` where the stream of events is modified as you describe.
     */
   def mapStream[A](f: Pipe[F, Out, A]) = new EventLog[F, In, A] {
-    def add(e: In): F[Unit] = add(e)
+    def add(e: In): F[Unit] = self.add(e)
     def stream: Stream[F, A] = f(self.stream)
   }
 }
