@@ -121,7 +121,7 @@ object EventStateCache {
       private def useEventState[B](k: K)(f: EventState[G, E, Option[A]] => G[B]): G[Option[B]] = {
         val doTheThing: G[Option[B]] = deferredMap
           .getOrAddF(k) {
-            log.getOneState[A, K](k).unNone.compile.last.flatMap {
+            log.getOneState[K, A](k).unNone.compile.last.flatMap {
               case Some(state) =>
                 EventState[G].initial[E, A](state).flatMap { es =>
                   ExpiringRef[G]
@@ -157,7 +157,7 @@ object EventStateCache {
         deferredMap.getOpt(k).flatMap {
           case Some(Some(exp)) => exp.use(_.get.flatMap(_.traverse(f))).map(_.flatten)
           case _ =>
-            val getFromLog: G[Option[B]] = log.getOneState[A, K](k).unNone.compile.last.flatMap {
+            val getFromLog: G[Option[B]] = log.getOneState[K, A](k).unNone.compile.last.flatMap {
               case Some(v) => f(v).map(_.some)
               case None    => none.pure[G]
             }
