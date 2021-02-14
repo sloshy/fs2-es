@@ -33,7 +33,10 @@ object Driven {
     */
   def instance[K, E, A](f: PartialFunction[(E, Option[A]), Option[A]])(implicit keyed: Keyed[K, E]) =
     new Driven[E, A] {
-      def handleEvent(optA: Option[A])(e: E): Option[A] = f.lift(e -> optA).flatten
+      def handleEvent(optA: Option[A])(e: E): Option[A] = f.lift(e -> optA) match {
+        case Some(result) => result
+        case None         => optA
+      }
       def handleEvent(a: A)(e: E): Option[A] = handleEvent(a.some)(e)
     }
 }
