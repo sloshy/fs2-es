@@ -71,7 +71,10 @@ class EventStateSpec extends BaseTestSpec {
         events.traverse(es.doNext).map(_.flattenOption) >> es.get.assertEquals(Some(events.mkString))
       }
       val emptyStream = testWithEachEmpty[String, String] { es =>
-        es.doNextStream(Stream.emits(events)) >> es.get.assertEquals(Some(events.mkString))
+        es.doNextStream(Stream.emits(events)).compile.drain >> es.get.assertEquals(Some(events.mkString))
+      }
+      val emptyStreamToIO = testWithEachEmpty[String, String] { es =>
+        es.doNext(Stream.emits(events)) >> es.get.assertEquals(Some(events.mkString))
       }
       val emptyHookup = testWithEachEmpty[String, String] { es =>
         es.hookup(Stream.emits(events)).compile.drain >> es.get.assertEquals(Some(events.mkString))
@@ -83,7 +86,10 @@ class EventStateSpec extends BaseTestSpec {
         events.traverse(es.doNext) >> es.get.assertEquals(Some(s + events.mkString))
       )
       val initialStream = testWithEachInitial[String, String](s) { es =>
-        es.doNextStream(Stream.emits(events)) >> es.get.assertEquals(Some(s + events.mkString))
+        es.doNextStream(Stream.emits(events)).compile.drain >> es.get.assertEquals(Some(s + events.mkString))
+      }
+      val initialStreamToIO = testWithEachInitial[String, String](s) { es =>
+        es.doNext(Stream.emits(events)) >> es.get.assertEquals(Some(s + events.mkString))
       }
       val initialHookup = testWithEachInitial[String, String](s) { es =>
         es.hookup(Stream.emits(events)).compile.drain >> es.get.assertEquals(Some(s + events.mkString))
@@ -95,7 +101,10 @@ class EventStateSpec extends BaseTestSpec {
         events.traverse(es.doNext) >> es.get.assertEquals(s + events.mkString)
       )
       val defaultStream = testWithEachInitialDefault[String, String](s) { es =>
-        es.doNextStream(Stream.emits(events)) >> es.get.assertEquals(s + events.mkString)
+        es.doNextStream(Stream.emits(events)).compile.drain >> es.get.assertEquals(s + events.mkString)
+      }
+      val defaultStreamToIO = testWithEachInitialDefault[String, String](s) { es =>
+        es.doNext(Stream.emits(events)) >> es.get.assertEquals(s + events.mkString)
       }
       val defaultHookup = testWithEachInitialDefault[String, String](s) { es =>
         es.hookup(Stream.emits(events)).compile.drain >> es.get.assertEquals(s + events.mkString)
@@ -104,9 +113,9 @@ class EventStateSpec extends BaseTestSpec {
         Stream.emits(events).through(es.hookupWithInput).compile.drain >> es.get.assertEquals(s + events.mkString)
       }
 
-      val testEmpty = empty >> emptyStream >> emptyHookup >> emptyWithInput
-      val testInitial = initial >> initialStream >> initialHookup >> initialWithInput
-      val testDefault = default >> defaultStream >> defaultHookup >> defaultWithInput
+      val testEmpty = empty >> emptyStream >> emptyStreamToIO >> emptyHookup >> emptyWithInput
+      val testInitial = initial >> initialStream >> initialStreamToIO >> initialHookup >> initialWithInput
+      val testDefault = default >> defaultStream >> defaultStreamToIO >> defaultHookup >> defaultWithInput
 
       testEmpty >> testInitial >> testDefault.void
     }

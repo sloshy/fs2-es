@@ -30,9 +30,14 @@ trait EventState[F[_], E, A] {
   /** The same as `hookup`, but also gives you the events passed through it as a tuple along with the resulting state. */
   def hookupWithInput(implicit F: Functor[F]): Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
 
-  /** Feeds a stream of events into this `EventState` and returns the final state. */
-  def doNextStream(eventStream: Stream[F, E])(implicit F: Sync[F]): F[A] =
+  /** Feeds a stream of events into this `EventState` and returns the final state.
+    * If you don't have a `Sync` constraint, you are probably better off using `doNextStream` or `doNext` directly.
+    */
+  def doNext(eventStream: Stream[F, E])(implicit F: Sync[F]): F[A] =
     eventStream.through(hookup).compile.drain >> get
+
+  /** Feeds a stream of events into this `EventState` and returns the final state as a singleton stream. */
+  def doNextStream(eventStream: Stream[F, E]): Stream[F, A] = eventStream.through(hookup).drain ++ Stream.eval(get)
 }
 
 /** An `EventState` implementation that lets you `subscribe` to incoming events. */
