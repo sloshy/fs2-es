@@ -10,7 +10,7 @@ import cats.data.State
   * @param E The type of the events.
   * @param A The type of state the events are applied to.
   */
-trait KeyedState[K, E, A] extends Driven[E, A] with Initial[K, A] with Keyed[K, E]
+trait KeyedState[K, E, A] extends Driven[E, A] with Initial[K, A] with KeyedStateNonEmpty[K, E, A]
 
 object KeyedState {
 
