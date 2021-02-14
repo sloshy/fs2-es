@@ -1,5 +1,6 @@
 package dev.rpeters.fs2.es
 
+import cats.kernel.Monoid
 import cats.syntax.all._
 
 /** A typeclass for applying events to a known value.
@@ -47,5 +48,9 @@ object DrivenNonEmpty {
     */
   def instance[E, A](f: PartialFunction[(E, A), Option[A]]) = new DrivenNonEmpty[E, A] {
     def handleEvent(a: A)(e: E): Option[A] = f.lift(e -> a).getOrElse(a.some)
+  }
+
+  def monoid[A](implicit m: Monoid[A]) = new DrivenNonEmpty[A, A] {
+    def handleEvent(a: A)(e: A): Option[A] = m.combine(a, e).some
   }
 }
