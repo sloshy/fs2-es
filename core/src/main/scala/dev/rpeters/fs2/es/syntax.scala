@@ -37,15 +37,6 @@ object syntax {
     def handleEventOrDefault(e: E): A = ev.handleEventOrDefault(a)(e)
   }
 
-  implicit class keyInitialOps[K, A](k: K)(implicit ev: Initial[K, A]) {
-
-    /** Initialize a state value from this key.
-      *
-      * @return An initialized state value based on this key.
-      */
-    def initialize: A = ev.initialize(k)
-  }
-
   implicit class keyedOps[K, A](a: A)(implicit ev: Keyed[K, A]) {
 
     /** Extract a key from a given value.

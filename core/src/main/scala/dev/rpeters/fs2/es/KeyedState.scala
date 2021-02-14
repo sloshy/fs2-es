@@ -10,23 +10,20 @@ import cats.data.State
   * @param E The type of the events.
   * @param A The type of state the events are applied to.
   */
-trait KeyedState[K, E, A] extends Driven[E, A] with Initial[K, A] with KeyedStateNonEmpty[K, E, A]
+trait KeyedState[K, E, A] extends Driven[E, A] with KeyedStateNonEmpty[K, E, A]
 
 object KeyedState {
 
   def apply[K, E, A](implicit instance: KeyedState[K, E, A]) = instance
 
-  /** Define how to apply events to an optional value of this type
+  /** Define this type `A` as driven by events `E` with keys `K` in each event.
     *
-    * @param canInitialize A function that determines what events can be used to initialize state
-    * @param f Given an event and an optional state, apply it to that state.
-    * @return An instance of `DrivenInitial` for your state type.
+    * @return An instance of `KeyedState` for your state type.
     */
-  def instance[K, E, A](implicit driven: Driven[E, A], initial: Initial[K, A], keyed: Keyed[K, E]) =
+  def instance[K, E, A](implicit driven: Driven[E, A], keyed: Keyed[K, E]) =
     new KeyedState[K, E, A] {
       def handleEvent(a: A)(e: E): Option[A] = driven.handleEvent(a)(e)
       def handleEvent(optA: Option[A])(e: E): Option[A] = driven.handleEvent(optA)(e)
-      def initialize(k: K): A = initial.initialize(k)
       def getKey(e: E): K = keyed.getKey(e)
     }
 }

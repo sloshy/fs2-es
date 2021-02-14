@@ -28,18 +28,12 @@ object Driven {
 
   /** Define how to apply events to an optional value of this type
     *
-    * @param canInitialize A function that determines what events can be used to initialize state
     * @param f Given an event and an optional state, apply it to that state.
     * @return An instance of `DrivenInitial` for your state type.
     */
-  def instance[K, E, A](
-      canInitialize: E => Boolean
-  )(f: PartialFunction[(E, A), Option[A]])(implicit initial: Initial[K, A], keyed: Keyed[K, E]) =
+  def instance[K, E, A](f: PartialFunction[(E, Option[A]), Option[A]])(implicit keyed: Keyed[K, E]) =
     new Driven[E, A] {
-      def handleEvent(optA: Option[A])(e: E): Option[A] = optA match {
-        case None    => if (canInitialize(e)) e.getKey.initialize.some else none
-        case Some(a) => handleEvent(a)(e)
-      }
-      def handleEvent(a: A)(e: E): Option[A] = f.lift(e -> a).flatten
+      def handleEvent(optA: Option[A])(e: E): Option[A] = f.lift(e -> optA).flatten
+      def handleEvent(a: A)(e: E): Option[A] = handleEvent(a.some)(e)
     }
 }
