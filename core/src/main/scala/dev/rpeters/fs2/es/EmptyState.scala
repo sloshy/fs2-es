@@ -1,6 +1,6 @@
 package dev.rpeters.fs2.es
 
-/** Signifies that a state does not exist. */
+/** Signifies that a state does not exist for some reason. */
 sealed trait EmptyState extends Product with Serializable
 
 object EmptyState {
