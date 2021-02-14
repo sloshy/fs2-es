@@ -1,8 +1,9 @@
 package dev.rpeters.fs2.es
 
+import cats.Functor
 import cats.implicits._
 import cats.effect.{Concurrent, Sync, Timer}
-import cats.effect.concurrent.Ref
+import cats.effect.concurrent.{Deferred, Ref}
 import fs2.{Pipe, Stream}
 import data._
 import syntax._
@@ -15,29 +16,85 @@ sealed trait EventStateCache[F[_], K, E, A] {
   /** Access some state by key if it exists in your event log.
     *
     * If state is in-memory, it is immediately accessed and passed to your function.
-    * If state is in-memory but "deleted", immediately returns `None`.
-    * If state is not in-memory but exists in the event log, it is rebuilt from your event log and then passed to your function.
+    * If state is not in-memory but exists in the event log, it is rebuilt from your event log, cached, and then passed to your function.
+    * If state does not exist at all, returns `None`.
     *
-    * @param k The key of your event-sourced state.
-    * @param f A function you want to apply to your entity state.
-    * @return `None` if the state was deleted or not found, `Some(b)` if your state exists and your function applied successfully.
+    * @param k The key of your event-sourced state value.
+    * @param f A function you want to apply to your state.
+    * @return A value derived from the current state at this key, if it exists.
     */
   def use[B](k: K)(f: A => F[B]): F[Option[B]]
 
-  /** Applies an event to your event log, and then to any in-memory states.
+  /** Access some state by key if it exists in your event log without caching it.
+    *
+    * Compared to `use`, has the same semantics as far as loading from the event log goes, but the final state is not cached in-memory.
+    * Useful for one-off accesses that you know for sure will not be frequent.
+    *
+    * @param k The key of your event-sourced state value.
+    * @param f A function you want to apply to your state.
+    * @return A value derived from the current state at this key, if it exists.
+    */
+  def useDontCache[B](k: K)(f: A => F[B]): F[Option[B]]
+
+  /** Applies an event to your event log, and then to any in-memory states, without creating new states.
+    *
+    * If you would like newly-initialized states to be cached in-memory, use `addAndCache` instead.
     *
     * @param e The event you are applying to your event log and state.
-    * @return `None` if the state was deleted or not found, `Some(a)` if your state exists or was created from this event.
+    * @return Either the resulting in-memory state, if it has been modified, or `None`.
     */
-  def add(e: E): F[Option[A]]
+  def addOnlyCached(e: E): F[Option[A]]
+
+  /** Applies an event to your event log, and then to any in-memory states.
+    * Will cache a newly initialized state in-memory. If you only want to modify in-memory state without caching new values, use `add` instead.
+    *
+    * @param e The event you are applying to your event log and state.
+    * @return Either the resulting state in your cache, or an `EmptyState` specifying why the event did not apply.
+    */
+  def addAndCache(e: E): F[Either[EmptyState, A]]
+
+  /** Applies an event to only the event log, deleting any key that might have matched the event from your cache.
+    * After calling this, If you try to use state that this event maps to, you will reload state from the event log on the next access.
+    * This is to ensure internal consistency and the event log as your source of truth.
+    */
+  def addQuick(e: E): F[Unit]
 
   /** Applies a stream of new events, first to the event log and then in-memory states.
-    *
-    * This is an `fs2.Pipe` which is an alias for a function `Stream[F, E] => Stream[F, Option[A]]`.
-    * By passing a stream of events to this `EventStateCache`,
-    * you will keep any in-memory states updated as well as get a stream of all resulting states.
+    * If any events do not apply to a state that is currently in-memory, an `EmptyState` is emitted
     */
-  val hookup: Pipe[F, E, Option[A]] = _.evalMap(e => add(e))
+  val hookupOnlyCached: Pipe[F, E, Option[A]] = _.evalMap(addOnlyCached)
+
+  /** Applies a stream of new events, first to the event log, and then to any in-memory states.
+    * Will cache newly initialized state in-memory. If you only want to modify in-memory state without caching new values, use `hookupOnlyCached` instead.
+    */
+  val hookupAndCache: Pipe[F, E, Either[EmptyState, A]] = _.evalMap(addAndCache)
+
+  /** Applies a stream of new events only to the event log, disregarding state.
+    * For consistency, every state that matches the key from your events will be removed from the cache.
+    * This ensures that, if you try to use state that these events map to, you will get the correct state back.
+    */
+  val hookupQuick: Pipe[F, E, Unit] = _.evalMap(addQuick)
+
+  /** Applies a stream of new events, first to the event log, and then to any in-memory states.
+    *
+    * Similar to `hookup` except it gives you the event that resulted in that state.
+    */
+  def hookupOnlyCachedWithInput(implicit F: Functor[F]): Pipe[F, E, (E, Option[A])] =
+    _.evalMap(e => addOnlyCached(e).tupleLeft(e))
+
+  /** Applies a stream of new events, first to the event log, and then to any in-memory states.
+    * Will cache newly initialized state in-memory. If you only want to modify in-memory state without caching new values, use `hookupWithInput` instead.
+    *
+    * Similar to `hookupAndCache` except it gives you the event that resulted in that state.
+    */
+  def hookupAndCacheWithInput(implicit F: Functor[F]): Pipe[F, E, (E, Either[EmptyState, A])] =
+    _.evalMap(e => addAndCache(e).tupleLeft(e))
+
+  /** Applies a stream of new events, deleting any in-memory states they would apply to by-key, and returns the input event.
+    * For consistency, every state that matches the key from your events will be removed from the cache.
+    * This ensures that, if you try to use state that these events map to, you will get the correct state back.
+    */
+  def hookupQuickWithInput(implicit F: Functor[F]): Pipe[F, E, E] = _.evalMap(e => addQuick(e).as(e))
 }
 
 object EventStateCache {
@@ -57,40 +114,102 @@ object EventStateCache {
         dur: FiniteDuration = 2.minutes,
         existenceCheck: K => G[Boolean] = (_: K) => true.pure[G]
     )(implicit keyedState: KeyedState[K, E, A], timer: Timer[G]) = for {
-      deferredMap <- DeferredMap.in[F, G].tryableEmpty[K, Option[ExpiringRef[G, EventState[G, E, Option[A]]]]]
+      deferredMap <- DeferredMap.in[F, G].empty[K, Option[ExpiringRef[G, EventState[G, E, Option[A]]]]]
     } yield new EventStateCache[G, K, E, A] {
+      private def notFound[A]: Either[EmptyState, A] = EmptyState.NotFound.asLeft
+      private def deleted[A]: Either[EmptyState, A] = EmptyState.Deleted.asLeft
       private def useEventState[B](k: K)(f: EventState[G, E, Option[A]] => G[B]): G[Option[B]] = {
-        val doTheThing = deferredMap
+        val doTheThing: G[Option[B]] = deferredMap
           .getOrAddF(k) {
             log.getOneState[A, K](k).unNone.compile.last.flatMap {
               case Some(state) =>
                 EventState[G].initial[E, A](state).flatMap { es =>
                   ExpiringRef[G]
                     .timed(es, dur)
-                    .flatTap(eph => Concurrent[G].start(eph.expired >> deferredMap.del(k)))
+                    .flatTap(exp => Concurrent[G].start(exp.expired >> deferredMap.del(k)))
                     .map(_.some)
                 }
               case None =>
-                none.pure[G]
+                deferredMap.del(k).as(none)
             }
           }
           .flatMap {
-            case Some(eph) => eph.use(f)
-            case None      => none[B].pure[G].flatTap(_ => deferredMap.del(k))
+            case Some(exp) =>
+              exp.use(f)
+            case None =>
+              none.pure[G]
           }
 
-        existenceCheck(k).ifM(doTheThing, none.pure[G].flatTap(_ => deferredMap.del(k)))
+        existenceCheck(k).ifM(
+          doTheThing,
+          deferredMap.del(k).as(none)
+        )
       }
 
       def use[B](k: K)(f: A => G[B]): G[Option[B]] = {
-        useEventState(k)(_.get.flatMap(_.traverse(f))).map(_.flatten)
+        useEventState(k)(_.get.flatMap(_.traverse(f))).flatMap {
+          case Some(Some(v)) => v.some.pure[G]
+          case _             => deferredMap.del(k).as(none)
+        }
       }
 
-      def add(e: E): G[Option[A]] = useEventState(e.getKey)(es => log.add(e) >> es.doNext(e)).flatMap {
-        case Some(s) => s.pure[G]
-        case None    => log.add(e) >> deferredMap.del(e.getKey).as(none)
+      def useDontCache[B](k: K)(f: A => G[B]): G[Option[B]] = {
+        deferredMap.getOpt(k).flatMap {
+          case Some(Some(exp)) => exp.use(_.get.flatMap(_.traverse(f))).map(_.flatten)
+          case _ =>
+            val getFromLog: G[Option[B]] = log.getOneState[A, K](k).unNone.compile.last.flatMap {
+              case Some(v) => f(v).map(_.some)
+              case None    => none.pure[G]
+            }
+            val del = deferredMap.del(k).as(none[B])
+            existenceCheck(k).ifM(getFromLog, del)
+        }
       }
 
+      def addOnlyCached(e: E): G[Option[A]] =
+        deferredMap
+          .getOpt(e.getKey)
+          .flatMap {
+            case Some(Some(exp)) =>
+              exp.use(es => log.add(e) >> es.doNext(e)).flatMap {
+                case Some(Some(v)) => v.some.pure[G] //State exists in cache
+                case Some(None)    => deferredMap.del(e.getKey).as(none) //Key was deleted after applying event
+                case None          => log.add(e).as(none) //State does not exist in cache
+              }
+            case Some(None) => log.add(e) >> deferredMap.del(e.getKey).as(none)
+            case None       => log.add(e).as(none)
+          }
+
+      def addAndCache(e: E): G[Either[EmptyState, A]] =
+        useEventState(e.getKey)(es => log.add(e) >> es.doNext(e)).flatMap {
+          case Some(Some(v)) => v.asRight.pure[G] //State exists in cache
+          case Some(None)    => deferredMap.del(e.getKey).as(deleted) //Key was deleted after applying event
+          case None          =>
+            //State does not exist in cache
+            log.add(e).flatMap { _ =>
+              None.handleEvent(e) match {
+                case Some(v) =>
+                  for {
+                    d <- Deferred.tryable[G, Option[ExpiringRef[G, EventState[G, E, Option[A]]]]]
+                    es <- EventState[G].initial[E, A](v)
+                    expref <- ExpiringRef[G].timed(es, dur)
+                    _ <- d.complete(expref.some)
+                    _ <- deferredMap.add(e.getKey)(d)
+                  } yield v.asRight
+                case None => notFound.pure[G]
+              }
+            }
+        }
+
+      def addQuick(e: E): G[Unit] = log.add(e) >> deferredMap.del(e.getKey).void
+
+    }
+
+    def inMemory[K, E, A](dur: FiniteDuration, existenceCheck: K => G[Boolean] = (_: K) => true.pure[G])(implicit
+        keyed: KeyedState[K, E, A],
+        timer: Timer[G]
+    ): F[EventStateCache[G, K, E, A]] = EventLog.inMemory[F, G, E].flatMap { log =>
+      fromEventLog[K, E, A](log, dur, existenceCheck)
     }
   }
 

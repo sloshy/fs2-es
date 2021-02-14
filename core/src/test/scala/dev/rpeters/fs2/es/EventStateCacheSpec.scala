@@ -3,106 +3,169 @@ package dev.rpeters.fs2.es
 import cats.data.Chain
 import cats.effect._
 import cats.effect.concurrent.Ref
+import cats.syntax.all._
 import fs2.Stream
-import scala.concurrent.duration._
+import org.scalacheck.effect.PropF._
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits._
+import cats.effect.laws.util.TestContext
 
 class EventStateCacheSpec extends BaseTestSpec {
-  test("should reload state after the TTL elapses") {
-    val cache =
-      EventStateCache[IO].rehydrating[String, Int, Int](_ => 0)(_ => Stream(1, 2, 3))(_ + _)(5.seconds)
-    val program = cache.flatMap { c =>
-      for {
-        first <- c.use("test")(_.doNext(1))
-        _ <- timer.sleep(2.seconds)
-        second <- c.use("test")(_.get)
-        _ <- timer.sleep(6.seconds)
-        third <- c.use("test")(_.get)
-      } yield (first, second, third)
-    }
-    val running = program.unsafeToFuture()
-    tc.tick(2.seconds)
-    tc.tick(10.seconds)
-    val expected = (Some(7), Some(7), Some(6))
-    running.map(result => assertEquals(result, expected))
-  }
-  test("should not add state that already exists in-memory") {
-    // Cache is configured such that the existence check is always false, forcing it to rely on a memory check.
-    val cache = EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream(1, 2, 3))(_ + _)(
-      5.seconds,
-      _ => IO.pure(false)
-    )
-    val program = cache.flatMap { c =>
-      for {
-        added <- c.add("test")
-        notAdded <- c.add("test")
-      } yield (added, notAdded)
-    }
 
-    val running = program.unsafeToFuture()
-    running.map {
-      case (added, notAdded) =>
-        assert(added)
-        assert(!notAdded)
+  case class Event(key: String, value: Int)
+
+  def getEventLog = EventLog.inMemory[IO, Event]
+
+  def getEventLogWithStreamCounter = Ref[IO].of(0).flatMap { ref =>
+    getEventLog.map(_.mapStream(Stream.eval_(ref.update(_ + 1)) ++ _)).tupleRight(ref)
+  }
+
+  implicit val keyedState = new KeyedState[String, Event, Int] {
+    def handleEvent(a: Int)(e: Event): Option[Int] = (a + e.value).some
+
+    def handleEvent(optA: Option[Int])(e: Event): Option[Int] = optA.map(_ + e.value).getOrElse(e.value).some
+
+    def initialize(k: String): Int = 0
+
+    def getKey(a: Event): String = a.key
+
+  }
+
+  def logAndCache = EventLog.inMemory[IO, Event].flatMap { log =>
+    EventStateCache[IO].fromEventLog[String, Event, Int](log).tupleLeft(log)
+  }
+
+  def withLogAndCache(f: (EventLog[IO, Event, Event], EventStateCache[IO, String, Event, Int]) => IO[Unit]) =
+    logAndCache.flatMap { case (log, cache) => f(log, cache) }
+
+  test("use should always return None with an empty event log") {
+    forAllF { key: String =>
+      withLogAndCache { case (log, cache) =>
+        cache
+          .use(key)(_.pure[IO])
+          .assertEquals(none, "An empty event log should never find state")
+      }
     }
   }
-  test("should not add state that already exists in the event log") {
-    val cache = EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
-      5.seconds,
-      k => if (k == "test") IO.pure(false) else IO.pure(true)
-    )
-    val program = cache.flatMap { c =>
-      for {
-        added <- c.add("test")
-        notAdded <- c.add("bad-test")
-      } yield (added, notAdded)
-    }
 
-    val running = program.unsafeToFuture()
-    running.map {
-      case (added, notAdded) =>
-        assert(added)
-        assert(!notAdded)
+  test("use should always return the initialized value of new states") {
+    forAllF { (key: String, value: Int) =>
+      withLogAndCache { case (log, cache) =>
+        log.add(Event(key, value)) >> cache.use(key)(_.pure[IO]).assertEquals(value.some)
+      }
     }
   }
-  test("should allow using state that has been added") {
-    val cache =
-      EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ => Stream.empty)(_ + _)(
-        5.seconds,
-        _ => IO.pure(false)
-      )
-    val program = cache.flatMap { c =>
-      for {
-        firstAttempt <- c.use("test")(_.get)
-        added <- c.add("test")
-        secondAttempt <- c.use("test")(_.get)
-      } yield (firstAttempt, added, secondAttempt)
-    }
 
-    val (firstAttempt, added, secondAttempt) = program.unsafeRunSync()
-    program.unsafeToFuture().map {
-      case (firstAttempt, added, secondAttempt) =>
-        assertEquals(firstAttempt, None)
-        assert(added)
-        assertEquals(secondAttempt, Some(1))
+  test("useDontCache should have the same results as use") {
+    forAllF { (key: String, value: Int) =>
+      withLogAndCache { case (log, cache) =>
+        val logEvent = log.add(Event(key, value))
+        val getSet = for {
+          _ <- logEvent >> logEvent >> logEvent
+          useRes1 <- cache.use(key)(_.pure[IO])
+          useRes2 <- cache.use(key)(_.pure[IO])
+          useDontCacheRes1 <- cache.useDontCache(key)(_.pure[IO])
+          useDontCacheRes2 <- cache.useDontCache(key)(_.pure[IO])
+        } yield List(useRes1, useRes2, useDontCacheRes1, useDontCacheRes2).toSet
+
+        getSet.assertEquals(Set((value * 3).some))
+      }
     }
   }
-  test("should rehydrate state that has been manually added to the event stream") {
-    val inMemoryPersistence = Ref.of[IO, Chain[Int]](Chain.empty)
-    val program = for {
-      ref <- inMemoryPersistence
-      c <- EventStateCache[IO].rehydrating[String, Int, Int](_ => 1)(_ =>
-        Stream.eval(ref.get).flatMap(x => Stream.emits(x.toList)).take(1)
-      )(_ + _)(5.seconds)
-      added <- c.add("test")
-      _ <- ref.update(_ :+ 0) //Add a no-op event
-      _ <- IO.sleep(6.seconds)
-      result <- c.use("test")(_.get)
-    } yield result
 
-    val running = program.unsafeToFuture()
-    tc.tick(6.seconds)
-    running.map { result => assertEquals(result, Some(1)) }
+  test("add variants should add events to the underlying event log") {
+    forAllF { (key: String, value: Int) =>
+      val testAddOnlyCached = withLogAndCache { case (log, cache) =>
+        val testInitialLogState = log.stream.compile.toList.assertEquals(Nil, "EventLog should start out empty")
+        val testCacheInit =
+          cache.addOnlyCached(Event(key, value)).assertEquals(none, "Cache should not apply event to uncached state")
+        val testLogAfterInit =
+          log.stream.compile.toList.assertEquals(List(Event(key, value)), "EventLog should contain first event")
+
+        val testCacheSecondEvent = cache
+          .addOnlyCached(Event(key, value))
+          .assertEquals(none, "Cache should not apply event to uncached state")
+
+        val testLogBothEvents = log.stream.compile.toList
+          .assertEquals(List(Event(key, value), Event(key, value)), "EventLog should contain both events")
+
+        testInitialLogState >> testCacheInit >> testLogAfterInit >> testCacheSecondEvent >> testLogBothEvents
+      }
+
+      val testAddAndCache = withLogAndCache { case (log, cache) =>
+        val testInitialLogState = log.stream.compile.toList.assertEquals(Nil, "EventLog should start out empty")
+        val testCacheInit =
+          cache.addAndCache(Event(key, value)).assertEquals(value.asRight, "Cache should initialize state")
+        val testLogAfterInit =
+          log.stream.compile.toList.assertEquals(List(Event(key, value)), "EventLog should contain first event")
+
+        val testCacheSecondEvent = cache
+          .addAndCache(Event(key, value))
+          .assertEquals((value * 2).asRight, "Cache should apply event to in-memory state")
+
+        val testLogBothEvents = log.stream.compile.toList
+          .assertEquals(List(Event(key, value), Event(key, value)), "EventLog should contain both events")
+
+        testInitialLogState >> testCacheInit >> testLogAfterInit >> testCacheSecondEvent >> testLogBothEvents
+      }
+
+      val testAddQuick = withLogAndCache { case (log, cache) =>
+        val testInitialLogState = log.stream.compile.toList.assertEquals(Nil, "EventLog should start out empty")
+        val testLogAfterInit =
+          cache.addQuick(Event(key, value)) >> log.stream.compile.toList
+            .assertEquals(List(Event(key, value)), "EventLog should contain first event")
+
+        val testLogBothEvents = cache
+          .addQuick(Event(key, value)) >> log.stream.compile.toList
+          .assertEquals(List(Event(key, value), Event(key, value)), "EventLog should contain both events")
+
+        testInitialLogState >> testLogAfterInit >> testLogBothEvents
+      }
+
+      testAddOnlyCached >> testAddAndCache >> testAddQuick
+    }
+  }
+
+  //TODO: figure out using test context w/ munit cats effect and scalacheck
+  test("should reload state when not cached") {
+    // val tc = TestContext()
+    // val cs = tc.ioContextShift
+    // val timer = tc.ioTimer
+    forAllF { (key: String, value: Int) =>
+      getEventLogWithStreamCounter.flatMap { case (log, streamCount) =>
+        EventStateCache[IO]
+          .fromEventLog[String, Event, Int](log, 0.5.seconds)
+          .flatMap { cache =>
+            val use = cache.use(key)(_.pure[IO])
+            val useDontCache = cache.useDontCache(key)(_.pure[IO])
+            for {
+              _ <- log.add(Event(key, value))
+              _ <- streamCount.get.assertEquals(0)
+              _ <- useDontCache
+              _ <- useDontCache
+              _ <- streamCount.get.assertEquals(2)
+              _ <- use
+              _ <- use //Should be cached here
+              _ <- streamCount.get.assertEquals(3)
+              // _ <- Timer[IO].sleep(2.seconds) //Wait until cache item is expired
+              // _ <- use
+              // _ <- streamCount.get.assertEquals(4)
+            } yield ()
+          }
+      }
+    }
+  }
+
+  test("should not load state if the existence check returns false") {
+    forAllF { (key: String, value: Int) =>
+      getEventLog.flatMap { log =>
+        EventStateCache[IO].fromEventLog[String, Event, Int](log, existenceCheck = _ => IO.pure(false)).flatMap {
+          cache =>
+            log
+              .add(Event(key, value)) >> cache.use(key)(_.pure[IO]).assertEquals(none, "Existence check is not working")
+        }
+      }
+    }
   }
 }
