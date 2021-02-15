@@ -4,6 +4,9 @@ package dev.rpeters.fs2.es
   * A weaker version of `Initial` that only specifies the ability to extract a key, with no initialization.
   *
   * To be lawful, you only have to assert that `getKey(a) == getKey(a)` for all `a`.
+  *
+  * @param K The type of key.
+  * @param A The value that contains said key.
   */
 trait Keyed[K, A] {
 
