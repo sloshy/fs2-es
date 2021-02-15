@@ -1,5 +1,6 @@
 package dev.rpeters.fs2.es
 
+import cats.kernel.Monoid
 import cats.syntax.all._
 import syntax._
 
@@ -41,4 +42,16 @@ object Driven {
         case None         => optA
       }
     }
+
+  /** Create a `Driven` instance derived from your state's `Monoid` instance.
+    *
+    * In the event that your state is `None`, it is initialized as your type's "empty value",
+    * such as 0 for integers or the empty string.
+    */
+  def monoid[A: Monoid] = new Driven[A, A] {
+    def handleEvent(optA: Option[A])(e: A): Option[A] = optA match {
+      case Some(value) => Some(value |+| e)
+      case None        => Some(Monoid[A].empty |+| e)
+    }
+  }
 }
