@@ -140,10 +140,8 @@ object ReplayableEventState {
         (event, state) => state.flatMap(_.handleEvent(event))
       )
 
-    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted.
-      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
-      */
-    def initialDefault[E, A](a: A)(implicit driven: DrivenNonEmpty[E, A]): F[ReplayableEventState[G, E, A]] =
+    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted. */
+    def total[E, A](a: A)(implicit driven: DrivenNonEmpty[E, A]): F[ReplayableEventState[G, E, A]] =
       for {
         initial <- Ref.in[F, G, A](a)
         internal <- Ref.in[F, G, InternalState[E, A]](InternalState())
