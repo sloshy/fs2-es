@@ -10,7 +10,7 @@ import cats.data.State
   * @param E The type of the events.
   * @param A The type of state the events are applied to.
   */
-trait KeyedState[K, E, A] extends Driven[E, A] with KeyedStateNonEmpty[K, E, A]
+trait KeyedState[K, E, A] extends Driven[E, A] with Keyed[K, E]
 
 object KeyedState {
 
@@ -22,7 +22,6 @@ object KeyedState {
     */
   def instance[K, E, A](implicit driven: Driven[E, A], keyed: Keyed[K, E]) =
     new KeyedState[K, E, A] {
-      def handleEvent(a: A)(e: E): Option[A] = driven.handleEvent(a)(e)
       def handleEvent(optA: Option[A])(e: E): Option[A] = driven.handleEvent(optA)(e)
       def getKey(e: E): K = keyed.getKey(e)
     }

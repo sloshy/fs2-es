@@ -25,16 +25,7 @@ object syntax {
       * @param e An event to apply to your state.
       * @return The current state, a modified state, or a deleted/removed state.
       */
-    def handleEvent(e: E): Option[A] = ev.handleEvent(a)(e)
-
-    /** Apply an event to this state value.
-      *
-      * Like `handleEvent`, but if applying an event would result in `None`, just return the initial state.
-      *
-      * @param e An event to apply to your state.
-      * @return Either the input state or a modified state.
-      */
-    def handleEventOrDefault(e: E): A = ev.handleEventOrDefault(a)(e)
+    def handleEvent(e: E): A = ev.handleEvent(a)(e)
   }
 
   implicit class keyedOps[K, A](a: A)(implicit ev: Keyed[K, A]) {

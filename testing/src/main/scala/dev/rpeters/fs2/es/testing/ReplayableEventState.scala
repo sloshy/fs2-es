@@ -126,7 +126,7 @@ object ReplayableEventState {
       }
 
     /** Creates a `ReplayableEventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit driven: DrivenNonEmpty[E, A]): F[ReplayableEventState[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit driven: Driven[E, A]): F[ReplayableEventState[G, E, Option[A]]] =
       for {
         initial <- Ref.in[F, G, Option[A]](a.some)
         internal <- Ref.in[F, G, InternalState[E, Option[A]]](InternalState())

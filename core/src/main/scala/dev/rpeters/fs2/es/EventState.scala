@@ -88,7 +88,7 @@ object EventState {
       }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
       for {
         state <- Ref.in[F, G, Option[A]](a.some)
       } yield finalState(state, (event, state) => state.flatMap(_.handleEvent(event)))
@@ -119,7 +119,7 @@ object EventState {
       }
 
     /** Gives you an `EventStateTopic` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventStateTopic[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventStateTopic[G, E, Option[A]]] =
       for {
         state <- Ref.in[F, G, Option[A]](a.some)
         topic <- Topic.in[F, G, Option[A]](a.some)
@@ -156,7 +156,7 @@ object EventState {
       }
 
     /** Gives you a `SignallingEventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[SignallingEventState[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[SignallingEventState[G, E, Option[A]]] =
       for {
         state <- SignallingRef.in[F, G, Option[A]](a.some)
       } yield finalState(state, (event, state) => state.flatMap(_.handleEvent(event)))

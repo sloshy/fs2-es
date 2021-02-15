@@ -49,8 +49,8 @@ trait EventLog[F[_], In, Out] { self =>
     * @param initial Your initial starting state.
     * @return A singleton stream of a final state value after applying all events to your starting state.
     */
-  def getState[A](initial: A)(implicit driven: DrivenNonEmpty[Out, A]): Stream[F, Option[A]] =
-    stream.fold(initial.some) { (state, event) => state.flatMap(_.handleEvent(event)) }
+  def getState[A](initial: A)(implicit driven: DrivenNonEmpty[Out, A]): Stream[F, A] =
+    stream.fold(initial)(_.handleEvent(_))
 
   /** Gets a single state as defined by the key you are filtering by.
     *
@@ -68,8 +68,8 @@ trait EventLog[F[_], In, Out] { self =>
     * @param key The key you wish to filter for.
     * @return A singleton stream of your final state value after applying all events to your starting state.
     */
-  def getOneState[K, A](initial: A, key: K)(implicit keyedState: KeyedStateNonEmpty[K, Out, A]): Stream[F, Option[A]] =
-    stream.filter(_.getKey == key).fold(initial.some) { (state, event) => state.flatMap(_.handleEvent(event)) }
+  def getOneState[K, A](initial: A, key: K)(implicit keyedState: KeyedStateNonEmpty[K, Out, A]): Stream[F, A] =
+    stream.filter(_.getKey == key).fold(initial)(_.handleEvent(_))
 
   /** Computes final state values from your event log and groups them by-key.
     *
@@ -99,7 +99,7 @@ trait EventLog[F[_], In, Out] { self =>
       val key = event.getKey
       stateMap(key) match {
         case Some(a) =>
-          a.handleEvent(event).map(state => stateMap.add(key -> state)).getOrElse(stateMap)
+          stateMap.add(key -> a.handleEvent(event))
         case None =>
           stateMap
       }

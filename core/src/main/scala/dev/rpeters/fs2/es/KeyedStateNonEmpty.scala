@@ -6,7 +6,7 @@ import cats.data.State
 
 /** Describes some state that is driven by events with a known key.
   *
-  * The weaker sibling of `KeyedState` that only allows applying events to known state values.
+  * This is the sibling of `KeyedState` that only allows applying events to known state values.
   *
   * @param K The key type you can extract from events.
   * @param E The type of the events.
@@ -24,9 +24,9 @@ object KeyedStateNonEmpty {
     * @param f Given an event and an optional state, apply it to that state.
     * @return An instance of `DrivenInitial` for your state type.
     */
-  def instance[K, E, A](implicit driven: Driven[E, A], keyed: Keyed[K, E]) =
+  def instance[K, E, A](implicit driven: DrivenNonEmpty[E, A], keyed: Keyed[K, E]) =
     new KeyedStateNonEmpty[K, E, A] {
-      def handleEvent(a: A)(e: E): Option[A] = driven.handleEvent(a)(e)
+      def handleEvent(a: A)(e: E): A = driven.handleEvent(a)(e)
       def getKey(e: E): K = keyed.getKey(e)
     }
 }
