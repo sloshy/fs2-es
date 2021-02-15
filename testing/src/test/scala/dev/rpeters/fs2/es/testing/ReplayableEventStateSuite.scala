@@ -7,7 +7,7 @@ import dev.rpeters.fs2.es.{BaseTestSpec, DrivenNonEmpty}
 
 class ReplayableEventStateSuite extends BaseTestSpec {
 
-  implicit val driven: DrivenNonEmpty[Int, Int] = DrivenNonEmpty.instance(_ + _)
+  implicit val driven: DrivenNonEmpty[Int, Int] = DrivenNonEmpty.monoid
 
   def newEs = ReplayableEventState[IO].total[Int, Int](0)
 

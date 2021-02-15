@@ -9,12 +9,8 @@ class EventLogSpec extends BaseTestSpec {
 
   test("getState") {
     val getLog = EventLog.inMemory[IO, Int]
-    implicit val drivenNonEmpty = new DrivenNonEmpty[Int, Int] {
-      def handleEvent(a: Int)(e: Int): Int = a + e
-    }
-    implicit val driven = new Driven[Int, Int] {
-      def handleEvent(optA: Option[Int])(e: Int): Option[Int] = optA.map(_ + e).getOrElse(e).some
-    }
+    implicit val drivenNonEmpty = DrivenNonEmpty.monoid[Int]
+    implicit val driven = Driven.monoid[Int]
 
     forAllF { (i: Int, offset: Int) =>
       getLog.flatMap { log =>

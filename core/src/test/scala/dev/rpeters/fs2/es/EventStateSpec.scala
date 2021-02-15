@@ -10,13 +10,9 @@ import org.scalacheck.Gen
 import scala.concurrent.ExecutionContext.Implicits._
 
 class EventStateSpec extends BaseTestSpec {
-  implicit val drivenNonEmpty = new DrivenNonEmpty[String, String] {
-    def handleEvent(a: String)(e: String): String = a + e
-  }
+  implicit val drivenNonEmpty = DrivenNonEmpty.monoid[String]
 
-  implicit val driven = new Driven[String, String] {
-    def handleEvent(optA: Option[String])(e: String): Option[String] = optA.map(_ + e).getOrElse(e).some
-  }
+  implicit val driven = Driven.monoid[String]
 
   val s = "string"
   val strs = List("1", "2", "3")
