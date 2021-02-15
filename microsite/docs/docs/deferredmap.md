@@ -4,8 +4,8 @@ title: DeferredMap
 permalink: /docs/deferredmap/
 ---
 # DeferredMap
-A `DeferredMap` is a concurrent [`MapRef`](/docs/mapref/) that is specifically optimized for awaiting asynchronous values that may not have completed yet.
-It is used internally by [`EventStateCache`](/docs/eventstatecache/) to keep track of what resources are already being awaited, so you do not duplicate requests.
+A `DeferredMap` is a concurrent [`MapRef`](mapref.md) that is specifically optimized for awaiting asynchronous values that may not have completed yet.
+It is used internally by [`EventStateCache`](eventstatecache.md) to keep track of what resources are already being awaited, so you do not duplicate requests.
 
 Here's a brief example of how you can use it, for awaiting a specific concurrent job to finish, by-key:
 
@@ -44,4 +44,4 @@ The API has a lot of nice helper methods for the typical use cases, such as gett
 You can also use `TryableDeferredMap` via the `tryableOf` and `tryableEmpty` constructors, which has additional methods based on inspecting if the result is completed or not.
 
 **BE ADVISED:** This is a rather low-level concurrency tool and you will want to thoroughly test your usage of this in order to not leak anything.
-Always be sure to delete values that have completed after some period of time, or make sure they expire with `ExpiringRef`.
+Always be sure to delete values that have completed after some period of time, or make sure they expire with [`ExpiringRef`](expiringref.md).

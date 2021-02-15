@@ -8,10 +8,10 @@ Often we say that some applications are "event-driven".
 This means that when an event occurs, our application responds by performing some action.
 In event-driven code, our states are also driven by events.
 This can be expressed as a function `(E, A) => A` where `E` is our event type and `A` is our state.
-The `Driven` typeclass indicates that there exists some function like the above that allows us to transition between states when applying events.
+The `Driven` type class indicates that there exists some function like the above that allows us to transition between states when applying events.
 
 ```scala mdoc:compile-only
-trait Driven[E, A] extends DrivenNonEmpty[E, A] {
+trait Driven[E, A] {
   def handleEvent(optA: Option[A])(e: E): Option[A]
 }
 ```
@@ -25,7 +25,7 @@ trait DrivenNonEmpty[E, A] {
 }
 ```
 
-`DrivenNonEmpty` is for cases where you know you have an initial state value.
+`DrivenNonEmpty` is for cases where you can never have an uninitialized or deleted state.
 For example, say we are folding on a `List[Int]` to find the sum of all the ints in the list.
 You could implement that as `DrivenNonEmpty` like so:
 
@@ -34,7 +34,7 @@ import dev.rpeters.fs2.es.DrivenNonEmpty
 
 //By hand:
 val drivenNonEmptyByHand = new DrivenNonEmpty[Int, Int] {
-  def handleEvent(a: Int)(e: Int): Option[Int] = Some(a + e)
+  def handleEvent(a: Int)(e: Int): Int = a + e
 }
 
 //Using `cats.Monoid[Int]`
@@ -42,9 +42,8 @@ val drivenNonEmptyMonoid = DrivenNonEmpty.monoid[Int]
 
 //Using an arbitrary function
 val drivenNonEmptyArb = DrivenNonEmpty.instance[Int, Int] {
-  case (2, 2)                   => Some(5) //Obviously 2 + 2 should equal 5
-  case (e, a) if (e + a == 666) => None //Forbid evil numbers!
-  case (e, a)                   => Some(e + a)
+  case (2, 2)                   => 5 //Obviously 2 + 2 should equal 5
+  case (e, a)                   => e + a
 }
 ```
 
@@ -61,17 +60,19 @@ Lets do a small example showing how to use `Driven` with some event-driven state
 Say we have a `User` model where we want the user's age to be an optional property.
 If an event comes along saying the user's name was set, our state value should update.
 ```scala mdoc:silent
+import dev.rpeters.fs2.es.Driven
+
 sealed trait UserEvent
-final case class UserCreated(name: String) extends UserEvent
-final case class UserAgeSet(age: Int) extends UserEvent
+case class UserCreated(name: String) extends UserEvent
+case class UserAgeSet(age: Int) extends UserEvent
 case object UserDeleted extends UserEvent
 
-final case class User(name: String, age: Option[Int])
+case class User(name: String, age: Option[Int])
 
 val drivenUser = Driven.instance[UserEvent, User] {
-  case (UserCreated(name), None)        => Some(User(name, None))
-  case (UserAgeSet(_, age), Some(user)) => Some(user.copy(age = age))
-  case (UserDeleted(_), _)              => None
+  case (UserCreated(name), None)     => Some(User(name, None))
+  case (UserAgeSet(age), Some(user)) => Some(user.copy(age = Some(age)))
+  case (UserDeleted, _)              => None
 }
 ```
 ```scala mdoc
@@ -79,10 +80,10 @@ val drivenUser = Driven.instance[UserEvent, User] {
 drivenUser.handleEvent(None)(UserCreated("Josh"))
 
 //Setting age
-drivenUser.handleEvent(Some(User("Josh", None)))(UserAgeSet("", 15))
+drivenUser.handleEvent(Some(User("Josh", None)))(UserAgeSet(15))
 
 //Deleting the user
-drivenUser.handleEvent(Some(User("Josh", 15)))(UserDeleted(""))
+drivenUser.handleEvent(Some(User("Josh", Some(15))))(UserDeleted)
 ```
 
 ## Syntax
@@ -94,6 +95,7 @@ Import `dev.rpeters.fs2.es.syntax._` to get started.
 * `handleEvent` on `None` (for `Driven` only)
 
 ```scala mdoc:silent
+import dev.rpeters.fs2.es.Driven
 import dev.rpeters.fs2.es.syntax._
 
 implicit val implicitDrivenUser: Driven[UserEvent, User] = drivenUser
@@ -103,15 +105,11 @@ implicit val implicitDrivenUser: Driven[UserEvent, User] = drivenUser
 //Syntax for Driven and DrivenNonEmpty
 //-----
 
-User("Josh", 15).handleEvent(UserAgeSet(18))
-
-User("Josh", 15).handleEventOrDefault(UserAgeSet(18))
+User("Josh", Some(15)).handleEvent(UserAgeSet(18))
 
 //-----
 //Syntax for Driven only
 //-----
 
-Some(User("Josh", 15)).handleEvent(UserAgeSet(18))
-
-None.handleEvent(UserCreated("Jimmy"))
+Some(User("Josh", Some(15))).handleEvent(UserAgeSet(18))
 ```

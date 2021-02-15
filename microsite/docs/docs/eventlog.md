@@ -9,6 +9,9 @@ This is especially helpful for debugging, but also one of the key principles of 
 In event-sourcing, your event log is the "source of truth" for your event state, meaning that any changes to state are applied from linear events in your log, in the order that they occur.
 In FS2-ES, we provide an `EventLog` interface for you to use to represent accessing and persisting events to your log.
 
+```scala mdoc:invisible
+import fs2.Stream
+```
 ```scala mdoc:compile-only
 trait EventLog[F[_], In, Out] {
 
@@ -38,20 +41,19 @@ import cats.effect.IO
 import dev.rpeters.fs2.es.EventLog
 
 //Our final state we want to calculate.
-final case class User(name: String, points: Int)
+case class User(name: String, points: Int)
 
 //Our event algebra.
 sealed trait UserEvent {
   //Every event needs a "key". Ours will be the user's name.
   val name: String
-  def setName(s: String)
 }
-final case class UserCreated(name: String) extends UserEvent
-final case class UserPointsChanged(name: String, diff: Int) extends UserEvent
+case class UserCreated(name: String) extends UserEvent
+case class UserPointsChanged(name: String, diff: Int) extends UserEvent
 
 val example = EventLog.inMemory[IO, UserEvent].flatMap { log =>
   //Lets create a couple users and assign them points
-  val addEvents = Stream[F, UserEvent](
+  val addEvents = Stream[IO, UserEvent](
       UserCreated("jack"),
       UserCreated("jill"),
       UserPointsChanged("jack", 5), //Jack gains 5 points
@@ -62,12 +64,12 @@ val example = EventLog.inMemory[IO, UserEvent].flatMap { log =>
     .drain
   
   //Get all of the current states from the event log
-  log.stream.fold(Map.empty[String, User]) { case (userMap, event) =>
+  val getFinalState = log.stream.fold(Map.empty[String, User]) { case (userMap, event) =>
     event match {
       case UserCreated(name) => 
         //Only add the user if they do not already exist
-        userMap.get(name).map(userMap).getOrElse { 
-          userMap + User(name, 0)
+        userMap.get(name).map(_ => userMap).getOrElse { 
+          userMap + (name -> User(name, 0))
         }
       case UserPointsChanged(name, points) => 
         userMap.get(name).map { user =>
@@ -76,18 +78,20 @@ val example = EventLog.inMemory[IO, UserEvent].flatMap { log =>
           userMap + (name -> newUser)
         }.getOrElse(userMap - name)
     }
-  }
+  }.compile.lastOrError
+
+  addEvents.flatMap(_ => getFinalState)
 }
 ```
 ```scala mdoc
 example.unsafeRunSync()
 ```
 
-## Using Typeclasses
+## Using Type classes
 In the above example, we are doing everything, from extracting keys, initializing states, and applying all events, manually and at call-site.
-You have the option to do it this way, if you find it simpler, but Scala allows us to program with typeclasses, and we can abstract the above code using them to make the call-site implementation a bit simpler.
+You have the option to do it this way, if you find it simpler, but Scala allows us to program with type classes, and we can abstract the above code using them to make the call-site implementation a bit simpler.
 
-FS2-ES includes several typeclasses, and in order to extract state we will need one of the following typeclasses:
+FS2-ES includes several type classes, and in order to extract state we will need one of the following type classes:
 * `Driven` - Get a single state value from the entire event log via `getState`
 * `DrivenNonEmpty` - Get a single state value from the entire event log using an initial value via `getState(initial)`
 * `KeyedState` - Get one or multiple keyed state values via `getOneState(key)` and `getKeyedState` respectfully.
@@ -97,14 +101,14 @@ Each of these methods is designed specifically for different kinds of stateful, 
 If your event log only represents a single state, you might be best off with `Driven` or `DrivenNonEmpty` and the methods they enable.
 Otherwise, if you have multiple states you want to load from your event log, use `KeyedState` or `KeyedStateNonEmpty`.
 
-Our example has events and state with a "key" (the user's name), so we can use `KeyedState`, which also gives us access to all of the above methods due to it being at the top of our typeclass hierarchy.
+Our example has events and state with a "key" (the user's name), so we can use `KeyedState`, which also gives us access to all of the above methods due to it being at the top of our type class hierarchy.
 
 
 ```scala mdoc:silent
 import dev.rpeters.fs2.es.{Driven, Keyed, KeyedState}
 
 //Defines how to extract our state "key" from each event.
-implicit val eventKeyed: Keyed[String, UserEvent] = Keyed.instance(_.key)
+implicit val eventKeyed: Keyed[String, UserEvent] = Keyed.instance(_.name)
 
 /** Defines how to apply a `UserEvent` to an `Option[User]`.
   * This is very similar to our previous attempt at doing it by-hand.
@@ -123,9 +127,9 @@ implicit val userDriven: Driven[UserEvent, User] =
 //We can derive a new KeyedState instance from our Keyed/Driven instances in-scope
 implicit val keyedState = KeyedState.instance[String, UserEvent, User]
 
-val simplerExample = EventLog.inMemory[IO, Int].flatMap { log =>
+val simplerExample = EventLog.inMemory[IO, UserEvent].flatMap { log =>
   //Add our events to our log to start, same as before:
-  val addEvents = Stream[F, UserEvent](
+  val addEvents = Stream[IO, UserEvent](
       UserCreated("jack"),
       UserCreated("jill"),
       UserPointsChanged("jack", 5), //Jack gains 5 points

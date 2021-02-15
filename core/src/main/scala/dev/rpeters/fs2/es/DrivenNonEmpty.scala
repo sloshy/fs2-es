@@ -3,7 +3,7 @@ package dev.rpeters.fs2.es
 import cats.kernel.Monoid
 import cats.syntax.all._
 
-/** A typeclass for applying events to a known value.
+/** A type class for applying events to a known value.
   *
   * This is the sibling of `Driven` that requires a state value to be present for all events.
   *

@@ -29,4 +29,5 @@ val timedRef = for {
 timedRef.unsafeRunSync()
 ```
 
-There is also a variant `ExpiringRef[F].uses` that lets you specify a maximum number of uses, but you may find the timed variant to be more practical for event sourcing.
+With the `.uses` constructor, you can specify a maximum number of uses instead of using a timer.
+That said, you may find the timed variant to be more practical for event sourcing.

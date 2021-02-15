@@ -25,6 +25,7 @@ trait EventState[F[_], E, A] {
 To create one, you will need a `Driven` or `DrivenNonEmpty` instance for your state in scope:
 
 ```scala mdoc:silent
+import cats.effect.IO
 import cats.syntax.all._
 import dev.rpeters.fs2.es.{DrivenNonEmpty, EventState}
 
@@ -50,7 +51,7 @@ There are several others that you should get to know with different properties, 
 * `empty` - Has an optional state starting as `None`. Needs a `Driven` instance.
 * `initial` - Has an initial state value as `Some`. Needs a `Driven` instance.
 * `total` - Has an initial state value and does not use optional state. Needs a `DrivenNonEmpty` instance.
-* `manualEmpty`, `manualInitial`, and `manualTotal` - Alternative versions of the above that do not use typeclasses and allow you to supply your own manual functions.
+* `manualEmpty`, `manualInitial`, and `manualTotal` - Alternative versions of the above that do not use type classes and allow you to supply your own manual functions.
 
 Using the above constructors you can create different `EventState` instances that are useful in different situations.
 For example, `empty` is useful in cases where state can be "initialized" by an incoming event, i.e. `UserCreatedEvent` in a system that models users.
@@ -67,4 +68,4 @@ As their names imply, they are based on `SignallingRef` and `Topic` respectively
 If you are doing signal processing, where you occasionally check a state value but only care about what state it is *right now* and not any intermediate states, `SignallingEventState` might be for you.
 On the other hand, if you want to broadcast your state changes across your application, look into `EventStateTopic`.
 
-If you are debugging, look into [`ReplayableEventState`](/docs/testing/) from the testing package, which is based on `EventStateTopic` and also allows you to seek forwards and backwards through your states, using time-travel debugging.
+If you are debugging, look into [`ReplayableEventState`](testing.md) from the testing package, which is based on `EventStateTopic` and also allows you to seek forwards and backwards through your states, using time-travel debugging.

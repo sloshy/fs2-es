@@ -5,8 +5,8 @@ permalink: docs/
 ---
 # Introduction
 Modeling state with events can be simple to understand, but difficult to master.
-You may have heard of "event sourcing", or perhaps the "Flux" and "Redux" models of application architecture in JavaScript.
-In each of these, there lies a common thread of having event-driven systems where the only way to modify state is by taking in a linear sequence of events as they occur.
+You may have heard of "event sourcing", or perhaps the ["Flux"](https://facebook.github.io/flux/) and ["Redux"](https://redux.js.org/) models of application architecture in JavaScript.
+In each of these, there is a common thread of having event-driven systems where the only way to modify state is by applying a linear sequence of events to your state.
 
 One easy way to model this is using `fold` in functional languages.
 For example, here is a basic way to get some event-driven state using "fold", written using the FS2 streaming library:
@@ -38,16 +38,6 @@ You can very easily build your own event log just by serializing events and putt
 
 This library chooses to focus on some of the more easily composable parts of event sourcing.
 To that end, it comes with a few useful utilities you should get to know.
-If you are just getting started, start learning with [`EventState`](/docs/eventstate/) in the sidebar and continue from there.
 
-## What to use?
-If you are doing a small event-sourced program and maybe only have a few, finite sources of event-sourced state, you can get by with only `EventState` just fine.
-If you have a number that you are quite confident should fit in memory, but might be dynamic for other reasons, make a `MapRef[K, EventState]` or use some other pattern/structure to organize your state.
-If you need custom lifetime management built on top of that, feel free to write your own structures using `ExpiringRef` as well on top of that, or on the side as-needed.
-Lastly, if you need all of that plus a key/value repository interface for your event-sourced state, `EventStateCache` should give you everything you need at once.
-It not only handles retrieving your state from your event log as you define it, but it also makes sure that you do not waste precious time or resources re-running the same event log queries by caching state in-memory.
+If you are just getting started, start learning with [`EventState`](eventstate.md) and the various [`Type Classes`](typeclasses.md)
 
-If you do not need "the full package" you should very easily be able to build what you need with each of the smaller parts that make up one `EventStateCache`.
-Try it out, see what works for you, and if you were able to build something that fit your use cases better with it, be sure to let me know!
-
-Happy event sourcing!
