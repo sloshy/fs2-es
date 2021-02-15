@@ -1,6 +1,6 @@
 package dev.rpeters.fs2.es
 
-/** A typeclass defining the ability to extract a "key" from some value, where a "key" is some data you can derive from it.
+/** A type class defining the ability to extract a "key" from some value, where a "key" is some data you can derive from it.
   * A weaker version of `Initial` that only specifies the ability to extract a key, with no initialization.
   *
   * To be lawful, you only have to assert that `getKey(a) == getKey(a)` for all `a`.
@@ -8,7 +8,7 @@ package dev.rpeters.fs2.es
   * @param K The type of key.
   * @param A The value that contains said key.
   */
-trait Keyed[K, A] {
+trait Keyed[K, -A] {
 
   /** Extract a key from a given value.
     *
