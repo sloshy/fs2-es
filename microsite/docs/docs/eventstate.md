@@ -4,74 +4,66 @@ title: EventState
 permalink: /docs/eventstate/
 ---
 # EventState
+When modeling your applications, you will occasionally want pieces of state that respond to events.
+You can build your own state machine if you know what you're doing, but it can help to have a ready-made primitive for that at your fingertips.
+To that end, `EventState` is a common abstraction to help you manage best practices for dealing with event-sourced state.
+You can create one empty, or with an initial value, and then apply events and streams to them to modify their state.
+The only way to modify their state is via events, and there is no other way to do so.
+In this way it is more restricted than `cats.effect.concurrent.Ref`, which you might already be using for mutable state, as it enforces this model.
 
-An `EventState` is a common abstraction to help you manage best practices for dealing with event-sourced state.
-It can only be created with an initial value, and optionally a stream of events to "rehydrate" it by folding over them.
+```scala mdoc:compile-only
+trait EventState[F[_], E, A] {
 
-Example for only initial state:
-```scala mdoc:silent
-import cats.effect._
-import dev.rpeters.fs2.es.EventState
+  //Applies an event to our state
+  def doNext(e: E): F[A]
 
-val initialEventState = for {
-  es <- EventState[IO].initial[Int, Int](1)(_ + _)
-  _ <- es.doNext(1)
-  result <- es.get
-} yield result
-```
-```scala mdoc
-initialEventState.unsafeRunSync()
-```
-
-Example for rehydrating state:
-```scala mdoc:silent
-import fs2.Stream
-
-val eventState = EventState[IO].initial[Int, Int](1)(_ + _)
-val hydratedState: IO[Int] = for {
-  es <- eventState
-  _ <- es.hydrate(Stream.emit(1))
-  result <- es.get
-} yield result
-```
-```scala mdoc
-hydratedState.unsafeRunSync()
+  //Gets the current value of state.
+  def get: F[A]
+}
 ```
 
-The only way to change a value in an `EventState` is to supply it manually to `doNext` or supply a hydrating stream of events.
-In this way, an `EventState` is basically just a small wrapper around a `cats.effect.concurrent.Ref` that enforces an event-based access pattern.
-
-You can also "hook up" a stream of events to an `EventState` to hydrate it and get a stream of the resulting states back:
+To create one, you will need a `Driven` or `DrivenNonEmpty` instance for your state in scope:
 
 ```scala mdoc:silent
-val hookedUpStream = EventState[IO].initial[Int, Int](1)(_ + _).flatMap { es =>
-  Stream(1, 1, 1).through(es.hookup).compile.toList
+import cats.syntax.all._
+import dev.rpeters.fs2.es.{DrivenNonEmpty, EventState}
+
+//Uses Monoid[Int] to add Int events to Int state
+implicit val intDriven: DrivenNonEmpty[Int, Int] = DrivenNonEmpty.monoid
+
+//Creates an EventState that sums ints together
+val getIntEventState: IO[EventState[IO, Int, Int]] = EventState[IO].total[Int, Int](0)
+
+val intEventStateExample = getIntEventState.flatMap { es =>
+  //Add 1 to the initial state of 0 three times
+  es.doNext(1) >> es.doNext(1) >> es.doNext(1)
 }
 ```
 ```scala mdoc
-hookedUpStream.unsafeRunSync()
+intEventStateExample.unsafeRunSync()
 ```
 
-When using `hookup`, if you only have a single event stream going into your `EventState` then the resulting stream is guaranteed to have all possible state changes.
+## Constructors
+The above example shows but one constructor available for `EventState`, the `total` constructor.
+There are several others that you should get to know with different properties, including:
 
-### SignallingEventState
-FS2 has some useful concurrency primitives in the form of `SignallingRef`s and `Topic`s, among others.
-`SignallingRef` is useful when you want to use a variable as a signal where you continuously want the latest state change.
-`SignallingEventState` is similar in that it has properties just like a `SignallingRef` but it also allows you to continuously stream state changes from it.
-In particular, the following two methods are available:
-* `continuous` - Get a stream that continuously emits the latest state at the time
-* `discrete` - Get a stream of the latest state values, but only when the new state value is distinct from the previous value
+* `empty` - Has an optional state starting as `None`. Needs a `Driven` instance.
+* `initial` - Has an initial state value as `Some`. Needs a `Driven` instance.
+* `total` - Has an initial state value and does not use optional state. Needs a `DrivenNonEmpty` instance.
+* `manualEmpty`, `manualInitial`, and `manualTotal` - Alternative versions of the above that do not use typeclasses and allow you to supply your own manual functions.
 
-You should be aware that **you are not guaranteed every single state change using these methods**.
-It is equivallent to repeatedly calling `get` and maybe doing some stateful filtering after.
-If you actually want every single resulting state, you can use a single input stream with the `hookup` pipe.
-Or, you can use `EventStateTopic` and subscribe.
+Using the above constructors you can create different `EventState` instances that are useful in different situations.
+For example, `empty` is useful in cases where state can be "initialized" by an incoming event, i.e. `UserCreatedEvent` in a system that models users.
+`initial` and `total` imply you supply your own starting state, and differ in whether or not you allow state to be "deleted" by being set to `None` by events.
+For quick demos, scripts, or ad-hoc usage with different configurations, the `manual` variants of the above can also be useful.
 
-### EventStateTopic
-`EventStateTopic` is a variant of `EventState` that allows you to subscribe to all new state changes, just like an FS2 `Topic`.
-It has a new method `subscribe` that returns a stream of all state changes from the moment of subscription, beginning with its current value.
-You can also `hookupAndSubscribe` which will concurrently apply all events from the current stream, as well as subscribe and return all events, including ones not from the input stream.
-This can be very useful if you have multiple spots where you want to "listen for" new state changes and get all of them, instead of just the latest one.
-The downside of doing this approach is it is less efficient, as every single state change must be processed instead of just the latest one available, but sometimes that is the exact semantic that you want.
+## SignallingEventState and EventStateTopic
+Under the hood, `EventState` is built on top of `cats.effect.Ref`, a structure for concurrent mutable data.
+The FS2 library provides a couple other concurrent state utilities that we might want to take advantage of, so for those situations, we have `SignallingEventState` and `EventStateTopic`.
+As their names imply, they are based on `SignallingRef` and `Topic` respectively, and are all based on the same underlying implementation, with some bonus features.
+`SignallingEventState`, just like `SignallingRef` in FS2, allows you to continuously stream the current state value as a signal.
+`EventStateTopic`, being based on FS2's `Topic`, will publish all state changes to a `Topic` for multiple subscribers to listen in on.
+If you are doing signal processing, where you occasionally check a state value but only care about what state it is *right now* and not any intermediate states, `SignallingEventState` might be for you.
+On the other hand, if you want to broadcast your state changes across your application, look into `EventStateTopic`.
 
-If you are debugging, look into `ReplayableEventState` from the testing package, which is based on `EventStateTopic`.
+If you are debugging, look into [`ReplayableEventState`](/docs/testing/) from the testing package, which is based on `EventStateTopic` and also allows you to seek forwards and backwards through your states, using time-travel debugging.
