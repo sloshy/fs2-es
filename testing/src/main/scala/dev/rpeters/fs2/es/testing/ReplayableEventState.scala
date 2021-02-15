@@ -5,7 +5,6 @@ import cats.data.Chain
 import cats.effect.{Concurrent, Sync}
 import cats.syntax.all._
 import cats.effect.concurrent.Ref
-import dev.rpeters.fs2.es.EventState.EventProcessor
 import dev.rpeters.fs2.es._
 import fs2.{Pipe, Stream}
 import fs2.concurrent.Topic
@@ -63,7 +62,7 @@ object ReplayableEventState {
   private final case class InternalState[E, A](events: Chain[E] = Chain.empty, index: Int = 0)
   final class ReplayableEventStatePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
 
-    private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: EventProcessor[E, A]) =
+    private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: (E, A) => A) =
       state.updateAndGet(ef(e, _))
 
     private def updateInternalState[E, A](s: InternalState[E, A], e: E) =
@@ -78,7 +77,7 @@ object ReplayableEventState {
         internalState: Ref[G, InternalState[E, A]],
         state: Ref[G, A],
         topic: Topic[G, A],
-        ef: EventProcessor[E, A]
+        ef: (E, A) => A
     ): ReplayableEventState[G, E, A] =
       new ReplayableEventState[G, E, A] {
         def doNext(e: E): G[A] =
@@ -137,7 +136,7 @@ object ReplayableEventState {
         internal,
         state,
         topic,
-        (event, state) => state.flatMap(_.handleEvent(event))
+        (event, state) => state.handleEvent(event)
       )
 
     /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted. */
@@ -152,7 +151,7 @@ object ReplayableEventState {
         internal,
         state,
         topic,
-        (event, state) => state.handleEventOrDefault(event)
+        (event, state) => state.handleEvent(event)
       )
 
     /** Creates a `ReplayableEventState` that is not yet initialized. */
@@ -163,6 +162,33 @@ object ReplayableEventState {
         state <- Ref.in[F, G, Option[A]](none)
         topic <- Topic.in[F, G, Option[A]](none)
       } yield finalState(initial, internal, state, topic, (event, state) => state.handleEvent(event))
+
+    /** Creates a `ReplayableEventState` that is not yet initialized, powered by a user-defined function. */
+    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[ReplayableEventState[G, E, Option[A]]] =
+      for {
+        initial <- Ref.in[F, G, Option[A]](none)
+        internal <- Ref.in[F, G, InternalState[E, Option[A]]](InternalState())
+        state <- Ref.in[F, G, Option[A]](none)
+        topic <- Topic.in[F, G, Option[A]](none)
+      } yield finalState(initial, internal, state, topic, f)
+
+    /** Creates a `ReplayableEventState` that is initialized to a starting value, powered by a user-defined function. */
+    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[ReplayableEventState[G, E, Option[A]]] =
+      for {
+        initial <- Ref.in[F, G, Option[A]](a.some)
+        internal <- Ref.in[F, G, InternalState[E, Option[A]]](InternalState())
+        state <- Ref.in[F, G, Option[A]](a.some)
+        topic <- Topic.in[F, G, Option[A]](a.some)
+      } yield finalState(initial, internal, state, topic, f)
+
+    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted, powered by a user-defined function. */
+    def manualTotal[E, A](a: A)(f: (E, A) => A): F[ReplayableEventState[G, E, A]] =
+      for {
+        initial <- Ref.in[F, G, A](a)
+        internal <- Ref.in[F, G, InternalState[E, A]](InternalState())
+        state <- Ref.in[F, G, A](a)
+        topic <- Topic.in[F, G, A](a)
+      } yield finalState(initial, internal, state, topic, f)
   }
   def apply[F[_]: Concurrent] = new ReplayableEventStatePartiallyApplied[F, F]()
 

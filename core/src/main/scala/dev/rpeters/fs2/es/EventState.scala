@@ -71,17 +71,13 @@ trait SignallingEventState[F[_], E, A] extends EventState[F, E, A] {
 
 object EventState {
 
-  /** A function that takes an `event` and the current `state` and returns a new `state`.
-    * Example: `val ef: EventProcessor[String, String] = (newS, currentS) => currentS ++ newS`
-    */
-  type EventProcessor[E, A] = (E, A) => A
   final class EventStatePartiallyApplied[F[_]: Sync, G[_]: Sync]() {
-    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: Ref[G, A]) =
+    private def doNextInternal[E, A](e: E, ef: (E, A) => A, state: Ref[G, A]) =
       state.modify { internalA =>
         val next = ef(e, internalA)
         next -> next
       }
-    private def finalState[E, A](state: Ref[G, A], ef: EventProcessor[E, A]) =
+    private def finalState[E, A](state: Ref[G, A], ef: (E, A) => A) =
       new EventState[G, E, A] {
         def doNext(e: E): G[A] = doNextInternal(e, ef, state)
         def get: G[A] = state.get
@@ -91,7 +87,7 @@ object EventState {
     def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
       for {
         state <- Ref.in[F, G, Option[A]](a.some)
-      } yield finalState(state, (event, state) => state.flatMap(_.handleEvent(event)))
+      } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you an `EventState` that is initialized to a starting value and cannot be deleted.
       * In the event that an event would otherwise "delete" your state, it keeps the current state value.
@@ -99,18 +95,38 @@ object EventState {
     def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[G, E, A]] =
       for {
         state <- Ref.in[F, G, A](a)
-      } yield finalState(state, (event, state) => state.handleEventOrDefault(event))
+      } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you an `EventState` that is not yet initialized. */
     def empty[E, A](implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
       for {
         state <- Ref.in[F, G, Option[A]](none)
       } yield finalState(state, (event, state) => state.handleEvent(event))
+
+    /** Gives you an empty `EventState` powered by a user-defined function. */
+    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](none)
+      } yield finalState(state, f)
+
+    /** Gives you an `EventState` powered by a user-defined function with a starting value. */
+    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[EventState[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](a.some)
+      } yield finalState(state, f)
+
+    /** Gives you an `EventState` powered by a user-defined function with a starting value that cannot be deleted.
+      * The supplied function ensures that you can never delete your state and it must always have a valid value.
+      */
+    def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventState[G, E, A]] =
+      for {
+        state <- Ref.in[F, G, A](a)
+      } yield finalState(state, f)
   }
   final class EventStateTopicPartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
-    private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: EventProcessor[E, A]) =
+    private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: (E, A) => A) =
       state.updateAndGet(ef(e, _))
-    private def finalState[E, A](state: Ref[G, A], topic: Topic[G, A], ef: EventProcessor[E, A]) =
+    private def finalState[E, A](state: Ref[G, A], topic: Topic[G, A], ef: (E, A) => A) =
       new EventStateTopic[G, E, A] {
         def doNext(e: E): G[A] = doNextInternal(e, state, ef).flatMap(a => topic.publish1(a).as(a))
         def get: G[A] = state.get
@@ -123,7 +139,7 @@ object EventState {
       for {
         state <- Ref.in[F, G, Option[A]](a.some)
         topic <- Topic.in[F, G, Option[A]](a.some)
-      } yield finalState(state, topic, (event, state) => state.flatMap(_.handleEvent(event)))
+      } yield finalState(state, topic, (event, state) => state.handleEvent(event))
 
     /** Gives you an `EventStateTopic` that is initialized to a starting value and cannot be deleted.
       * In the event that an event would otherwise "delete" your state, it keeps the current state value.
@@ -132,7 +148,7 @@ object EventState {
       for {
         state <- Ref.in[F, G, A](a)
         topic <- Topic.in[F, G, A](a)
-      } yield finalState(state, topic, (event, state) => state.handleEventOrDefault(event))
+      } yield finalState(state, topic, (event, state) => state.handleEvent(event))
 
     /** Gives you an `EventStateTopic` that is not yet initialized. */
     def empty[E, A](implicit ev: Driven[E, A]): F[EventStateTopic[G, E, Option[A]]] =
@@ -140,14 +156,37 @@ object EventState {
         state <- Ref.in[F, G, Option[A]](none)
         topic <- Topic.in[F, G, Option[A]](none)
       } yield finalState(state, topic, (event, state) => state.handleEvent(event))
+
+    /** Gives you an empty `EventStateTopic` powered by a user-defined function. */
+    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[EventStateTopic[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](none)
+        topic <- Topic.in[F, G, Option[A]](none)
+      } yield finalState(state, topic, f)
+
+    /** Gives you an `EventStateTopic` powered by a user-defined function with a starting value. */
+    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[EventStateTopic[G, E, Option[A]]] =
+      for {
+        state <- Ref.in[F, G, Option[A]](a.some)
+        topic <- Topic.in[F, G, Option[A]](a.some)
+      } yield finalState(state, topic, f)
+
+    /** Gives you an `EventStateTopic` powered by a user-defined function with a starting value that cannot be deleted.
+      * The supplied function ensures that you can never delete your state and it must always have a valid value.
+      */
+    def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventStateTopic[G, E, A]] =
+      for {
+        state <- Ref.in[F, G, A](a)
+        topic <- Topic.in[F, G, A](a)
+      } yield finalState(state, topic, f)
   }
   final class SignallingEventStatePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
-    private def doNextInternal[E, A](e: E, ef: EventProcessor[E, A], state: SignallingRef[G, A]) =
+    private def doNextInternal[E, A](e: E, ef: (E, A) => A, state: SignallingRef[G, A]) =
       state.modify { internalA =>
         val next = ef(e, internalA)
         next -> next
       }
-    private def finalState[E, A](state: SignallingRef[G, A], ef: EventProcessor[E, A]) =
+    private def finalState[E, A](state: SignallingRef[G, A], ef: (E, A) => A) =
       new SignallingEventState[G, E, A] {
         def doNext(e: E): G[A] = doNextInternal(e, ef, state)
         def get: G[A] = state.get
@@ -159,7 +198,7 @@ object EventState {
     def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[SignallingEventState[G, E, Option[A]]] =
       for {
         state <- SignallingRef.in[F, G, Option[A]](a.some)
-      } yield finalState(state, (event, state) => state.flatMap(_.handleEvent(event)))
+      } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you a `SignallingEventState` that is initialized to a starting value and cannot be deleted.
       * In the event that an event would otherwise "delete" your state, it keeps the current state value.
@@ -167,13 +206,33 @@ object EventState {
     def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[SignallingEventState[G, E, A]] =
       for {
         state <- SignallingRef.in[F, G, A](a)
-      } yield finalState(state, (event, state) => state.handleEventOrDefault(event))
+      } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you a `SignallingEventState` that is not yet initialized. */
     def empty[E, A](implicit ev: Driven[E, A]): F[SignallingEventState[G, E, Option[A]]] =
       for {
         state <- SignallingRef.in[F, G, Option[A]](none)
       } yield finalState(state, (event, state) => state.handleEvent(event))
+
+    /** Gives you an empty `SignallingEventState` powered by a user-defined function. */
+    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[SignallingEventState[G, E, Option[A]]] =
+      for {
+        state <- SignallingRef.in[F, G, Option[A]](none)
+      } yield finalState(state, f)
+
+    /** Gives you a `SignallingEventState` powered by a user-defined function with a starting value. */
+    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[SignallingEventState[G, E, Option[A]]] =
+      for {
+        state <- SignallingRef.in[F, G, Option[A]](a.some)
+      } yield finalState(state, f)
+
+    /** Gives you a `SignallingEventState` powered by a user-defined function with a starting value that cannot be deleted.
+      * The supplied function ensures that you can never delete your state and it must always have a valid value.
+      */
+    def manualTotal[E, A](a: A)(f: (E, A) => A): F[SignallingEventState[G, E, A]] =
+      for {
+        state <- SignallingRef.in[F, G, A](a)
+      } yield finalState(state, f)
   }
 
   /** Selects the set of constructors for a base `EventState`.
