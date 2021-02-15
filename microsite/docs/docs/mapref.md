@@ -4,7 +4,7 @@ title: MapRef
 permalink: /docs/mapref/
 ---
 # MapRef
-`MapRef` is used internally as a small wrapper around an immutable `Map` inside of a `cats.effect.concurrent.Ref`.
+`MapRef` is a small wrapper around an immutable `Map` inside of a `cats.effect.concurrent.Ref`.
 You can use it as a map of concurrent values that you can access across your application.
 
 ```scala mdoc:silent

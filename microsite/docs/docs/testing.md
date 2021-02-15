@@ -4,9 +4,8 @@ title: Testing
 permalink: /docs/testing/
 ---
 # Testing
-Using FS2-ES, you might want to be able to more easily inspect the history and contents of your state.
-A concept that appears in event-based programming is the idea of "time-travel debugging", or the ability to go forward and back in time.
-Because `EventState` enforces a linear, event-driven access pattern, that means that we are able to store all modifications to state and replay them, giving you access to all possible states that have been achieved.
+A concept that sometimes appears in event-based programming is the idea of "time-travel debugging", or the ability to go forward and back in time.
+Because [`EventState`](/docs/eventstate/) enforces a linear, event-driven access pattern, that means that we are able to store all modifications to state and replay them, giving you access to all possible states that have been achieved.
 If you install the `fs2-es-testing` module, you'll be able to use `ReplayableEventState` which is an extension of `EventStateTopic` with special testing and debugging methods.
 
 First, add the testing module to your project (available for ScalaJS 1.x as well):
@@ -25,7 +24,7 @@ import scala.concurrent.ExecutionContext.global
 implicit val cs = IO.contextShift(global)
 
 //Creates a new ReplayableEventState on each invocation that adds integers to state
-val newState = ReplayableEventState[IO].initial[Int, Int](0)(_ + _)
+val newState = ReplayableEventState[IO].manualTotal[Int, Int](0)(_ + _)
 ```
 
 From here, we can start accumulating events as normal, and it will work just like any other `EventStateTopic`.
@@ -48,10 +47,9 @@ eventsTest.flatMap { case (state, events) =>
 }.unsafeRunSync()
 ```
 
-You may have noticed that the events are returned as a `Chain`.
-That's an implementation detail, and you can treat it similarly to a `List` or turn it into one by calling `.toList` as-needed.
-For information on how `Chain` works or why you would want to use it, see [the Cats Chain documentation](https://typelevel.org/cats/datatypes/chain.html).
-The gist is, it works a lot like `List` but it performs much better in append-only scenarios.
+You may have noticed that the events are returned as a [`Chain`](https://typelevel.org/cats/datatypes/chain.html).
+It's a data structure similar to `List`, but optimized for frequent appending.
+You can treat it similarly to a `List` or similar traversible data structure, or turn it into one by calling `.toList` as-needed.
 
 If you don't need the entire list of events but you just want the event count, you can call `es.getEventCount`.
 
@@ -116,8 +114,6 @@ resetTest.flatMap { case (ls, rs, re, nis, nie) =>
 }.unsafeRunSync()
 ```
 
-## State changes and subscriptions
-Because this is based on `EventStateTopic`, you can `subscribe` to receive all state changes.
-You might have noticed that the methods for resetting and seeking state also return the resulting state back.
-Each time you call one of these methods, you will also publish the resulting state to all subscribers.
-This decision was made intentionally to allow for reactive debugging in environments such as ScalaJS where you might be using this as a reactive state store (think Flux/Redux).
+Each time you seek or reset state, that new state is also sent to all subscribers.
+This is to ensure that reactive applications, such as React apps in Scala.JS, will re-render your changes to state as soon as they happen.
+Please be aware of this fact when debugging your code as resetting state might trigger unintended actions if you are not careful.

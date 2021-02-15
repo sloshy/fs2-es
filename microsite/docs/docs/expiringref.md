@@ -4,8 +4,8 @@ title: ExpiringRef
 permalink: /docs/expiringref/
 ---
 # ExpiringRef
-Not directly related to events, but a useful primitive nonetheless, an `ExpiringRef` is a concurrently available value that expires after a certain period of time.
-When using event sourcing in particular, it can be helpful to "cache" event state in memory so that your application is not continuously reading from the event log every time it needs the latest state for something.
+An `ExpiringRef` is a concurrently available value that expires after a certain period of time or number of uses.
+When using event-sourcing in particular, it can be helpful to cache event state in memory so that your application is not continuously reading from the event log every time it needs the latest state for something.
 This abstraction uses an internal timer that resets after each use so that lifetime management of your state is automated.
 
 Here is a simple example:

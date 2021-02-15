@@ -4,7 +4,7 @@ title: Introduction
 permalink: docs/
 ---
 # Introduction
-Modelling state with events can be simple to understand, but difficult to master.
+Modeling state with events can be simple to understand, but difficult to master.
 You may have heard of "event sourcing", or perhaps the "Flux" and "Redux" models of application architecture in JavaScript.
 In each of these, there lies a common thread of having event-driven systems where the only way to modify state is by taking in a linear sequence of events as they occur.
 
@@ -38,7 +38,7 @@ You can very easily build your own event log just by serializing events and putt
 
 This library chooses to focus on some of the more easily composable parts of event sourcing.
 To that end, it comes with a few useful utilities you should get to know.
-Start with `EventState` in the sidebar and continue from there.
+If you are just getting started, start learning with [`EventState`](/docs/eventstate/) in the sidebar and continue from there.
 
 ## What to use?
 If you are doing a small event-sourced program and maybe only have a few, finite sources of event-sourced state, you can get by with only `EventState` just fine.

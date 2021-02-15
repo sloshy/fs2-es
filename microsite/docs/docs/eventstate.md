@@ -9,7 +9,7 @@ You can build your own state machine if you know what you're doing, but it can h
 To that end, `EventState` is a common abstraction to help you manage best practices for dealing with event-sourced state.
 You can create one empty, or with an initial value, and then apply events and streams to them to modify their state.
 The only way to modify their state is via events, and there is no other way to do so.
-In this way it is more restricted than `cats.effect.concurrent.Ref`, which you might already be using for mutable state, as it enforces this model.
+In this way it is more restricted than `cats.effect.concurrent.Ref`, which you might already be using for mutable state, as it enforces this event-driven model.
 
 ```scala mdoc:compile-only
 trait EventState[F[_], E, A] {
@@ -61,6 +61,7 @@ For quick demos, scripts, or ad-hoc usage with different configurations, the `ma
 Under the hood, `EventState` is built on top of `cats.effect.Ref`, a structure for concurrent mutable data.
 The FS2 library provides a couple other concurrent state utilities that we might want to take advantage of, so for those situations, we have `SignallingEventState` and `EventStateTopic`.
 As their names imply, they are based on `SignallingRef` and `Topic` respectively, and are all based on the same underlying implementation, with some bonus features.
+
 `SignallingEventState`, just like `SignallingRef` in FS2, allows you to continuously stream the current state value as a signal.
 `EventStateTopic`, being based on FS2's `Topic`, will publish all state changes to a `Topic` for multiple subscribers to listen in on.
 If you are doing signal processing, where you occasionally check a state value but only care about what state it is *right now* and not any intermediate states, `SignallingEventState` might be for you.
