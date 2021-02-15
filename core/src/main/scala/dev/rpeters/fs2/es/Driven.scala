@@ -34,7 +34,7 @@ object Driven {
     * @param f A function to apply events to state.
     * @return An instance of `Driven` for your state type.
     */
-  def instance[K, E, A](f: PartialFunction[(E, Option[A]), Option[A]])(implicit keyed: Keyed[K, E]) =
+  def instance[E, A](f: PartialFunction[(E, Option[A]), Option[A]]) =
     new Driven[E, A] {
       def handleEvent(optA: Option[A])(e: E): Option[A] = f.lift(e -> optA) match {
         case Some(result) => result
