@@ -3,16 +3,13 @@ package dev.rpeters.fs2.es.testing
 import cats.data.Chain
 import cats.effect.IO
 import cats.implicits._
-import dev.rpeters.fs2.es.{BaseTestSpec, Driven}
+import dev.rpeters.fs2.es.{BaseTestSpec, DrivenNonEmpty}
 
 class ReplayableEventStateSuite extends BaseTestSpec {
 
-  implicit val driven: Driven[Int, Int] = new Driven[Int, Int] {
-    def handleEvent(a: Int)(e: Int): Option[Int] = (a + e).some
-    def handleEvent(optA: Option[Int])(e: Int): Option[Int] = optA.map(_ + e)
-  }
+  implicit val driven: DrivenNonEmpty[Int, Int] = DrivenNonEmpty.instance(_ + _)
 
-  def newEs = ReplayableEventState[IO].initialDefault[Int, Int](0)
+  def newEs = ReplayableEventState[IO].total[Int, Int](0)
 
   test("increment event count") {
     val program = for {

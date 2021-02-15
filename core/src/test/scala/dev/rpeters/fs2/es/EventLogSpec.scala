@@ -9,8 +9,10 @@ class EventLogSpec extends BaseTestSpec {
 
   test("getState") {
     val getLog = EventLog.inMemory[IO, Int]
+    implicit val drivenNonEmpty = new DrivenNonEmpty[Int, Int] {
+      def handleEvent(a: Int)(e: Int): Int = a + e
+    }
     implicit val driven = new Driven[Int, Int] {
-      def handleEvent(a: Int)(e: Int): Option[Int] = (a + e).some
       def handleEvent(optA: Option[Int])(e: Int): Option[Int] = optA.map(_ + e).getOrElse(e).some
     }
 
@@ -18,7 +20,7 @@ class EventLogSpec extends BaseTestSpec {
       getLog.flatMap { log =>
         val addThree = log.add(i) >> log.add(i) >> log.add(i)
         val testGetState = log.getState[Int].compile.lastOrError.assertEquals((i * 3).some)
-        val testGetStateInit = log.getState(offset).compile.lastOrError.assertEquals((i * 3 + offset).some)
+        val testGetStateInit = log.getState(offset).compile.lastOrError.assertEquals(i * 3 + offset)
         addThree >> testGetState >> testGetStateInit
       }
     }
@@ -27,10 +29,12 @@ class EventLogSpec extends BaseTestSpec {
   test("getOneState and getKeyedState") {
     case class Event(key: String, value: Int)
     val getLog = EventLog.inMemory[IO, Event]
+    implicit val keyedNonEmpty = new KeyedStateNonEmpty[String, Event, Int] {
+      def handleEvent(a: Int)(e: Event): Int = a + e.value
+      def getKey(a: Event): String = a.key
+    }
     implicit val keyed = new KeyedState[String, Event, Int] {
-      def handleEvent(a: Int)(e: Event): Option[Int] = (a + e.value).some
       def handleEvent(optA: Option[Int])(e: Event): Option[Int] = optA.map(_ + e.value).getOrElse(e.value).some
-      def initialize(k: String): Int = 0
       def getKey(a: Event): String = a.key
     }
     forAllF { (key: String, value: Int, initOffset: Int, key2Offset: Int) =>
@@ -45,9 +49,9 @@ class EventLogSpec extends BaseTestSpec {
         val testGetState = log.getOneState[String, Int](key).compile.lastOrError.assertEquals((value * 3).some)
         val testGetStateKey2 = log.getOneState[String, Int](key2).compile.lastOrError.assertEquals((key2Value * 3).some)
         val testGetStateInit =
-          log.getOneState(initOffset, key).compile.lastOrError.assertEquals((value * 3 + initOffset).some)
+          log.getOneState(initOffset, key).compile.lastOrError.assertEquals(value * 3 + initOffset)
         val testGetStateKey2Init =
-          log.getOneState(initOffset, key2).compile.lastOrError.assertEquals((key2Value * 3 + initOffset).some)
+          log.getOneState(initOffset, key2).compile.lastOrError.assertEquals(key2Value * 3 + initOffset)
 
         val testGetKeyedState = log
           .getKeyedState[String, Int]
