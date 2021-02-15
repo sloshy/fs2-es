@@ -2,7 +2,20 @@ package dev.rpeters.fs2.es
 
 object syntax {
 
-  implicit class drivenOps[A, E](optA: Option[A])(implicit ev: Driven[E, A]) {
+  implicit class drivenOps[A, E](a: A)(implicit ev: Driven[E, A]) {
+
+    /** Apply an event to this state value,
+      *
+      * If a state does not exist and it is created, that indicates it was "initialized" by some starting event.
+      * If a state does exist but `None` is returned after applying this function, that state was removed/deleted.
+      *
+      * @param e An event to apply to your state.
+      * @return The current state, a modified state, or a nonexistent state.
+      */
+    def handleEvent(e: E): Option[A] = ev.handleEvent(Some(a))(e)
+  }
+
+  implicit class drivenOptionOps[A, E](optA: Option[A])(implicit ev: Driven[E, A]) {
 
     /** Apply an event to this state value that may not exist.
       *
