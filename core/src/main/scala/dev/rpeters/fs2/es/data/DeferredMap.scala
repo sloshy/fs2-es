@@ -84,7 +84,7 @@ sealed trait TryableDeferredMap[F[_], K, V] extends DeferredMap[F, K, V, Tryable
 }
 
 object DeferredMap {
-  final class DeferredMapPartiallyApplied[F[_]: Sync, G[_]: Concurrent: Timer] {
+  final class DeferredMapPartiallyApplied[F[_]: Sync, G[_]: Concurrent] {
     private def construct[K, V](map: MapRef[G, K, Deferred[G, V]]) =
       new DeferredMap[G, K, V, Deferred[G, V]] {
         def add(k: K)(d: Deferred[G, V]): G[Unit] =
@@ -237,8 +237,8 @@ object DeferredMap {
   }
 
   /** A set of constructors for `DeferredMap` using the same effect type for everything. */
-  def apply[F[_]: Concurrent: Timer] = new DeferredMapPartiallyApplied[F, F]
+  def apply[F[_]: Concurrent] = new DeferredMapPartiallyApplied[F, F]
 
   /** A set of constructors for `DeferredMap` where you can use a different effect for your internal `DeferredMap`. */
-  def in[F[_]: Sync, G[_]: Concurrent: Timer] = new DeferredMapPartiallyApplied[F, G]
+  def in[F[_]: Sync, G[_]: Concurrent] = new DeferredMapPartiallyApplied[F, G]
 }
