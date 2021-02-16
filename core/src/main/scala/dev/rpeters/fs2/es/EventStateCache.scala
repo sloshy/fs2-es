@@ -1,6 +1,6 @@
 package dev.rpeters.fs2.es
 
-import cats.Functor
+import cats.{Applicative, Functor}
 import cats.implicits._
 import cats.effect.{Concurrent, Sync, Timer}
 import cats.effect.concurrent.{Deferred, Ref}
@@ -101,17 +101,149 @@ object EventStateCache {
 
   final class EventStateCachePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
 
-    /** Create an EventStateCache backed by the given `EventLog`.
-      * States that are used are kept in-memory for the specified duration between-uses, before they are removed.
+    /** Create an EventStateCache backed by the supplied event log.
+      * As many as `maxStates` states are kept in-memory at once, with the least-recently-used ones removed if that limit is reached.
+      * States are also kept in-memory for the specified duration of time, and are then discarded.
+      * The next time a state is requested, if it has expired or been removed after hitting the max bound, it is restored from your event log.
       *
       * @param log Your event log you are restoring state from.
-      * @param dur The duration for states to remain in memory. Default is 2 minutes.
+      * @param maxStates The maximum number of elements to try to keep in memory at once. Initial value is an arbitrary limit of 1024.
+      * @param ttl The ttlation for states to remain in memory. Default is 2 minutes.
       * @param existenceCheck A function to quickly determine if a state exists or not before consulting the event log.
       * @return A new `EventStateCache` that loads states into memory and temporarily caches them.
       */
-    def fromEventLog[K, E, A](
+    def timedBounded[K, E, A](
         log: EventLog[G, E, E],
-        dur: FiniteDuration = 2.minutes,
+        maxStates: Int = 1024,
+        ttl: FiniteDuration = 2.minutes,
+        existenceCCheck: K => G[Boolean] = (_: K) => true.pure[G]
+    )(implicit keyedState: KeyedState[K, E, A], timer: Timer[G]) = for {
+      deferredMap <- DeferredMap.in[F, G].empty[K, Option[ExpiringRef[G, EventState[G, E, Option[A]]]]]
+      lru <- LRU.in[F, G, K]
+    } yield () //TODO
+
+    /** Create an EventStateCache backed by the supplied event log.
+      * Buffers up to `maxStates` states in-memory at once, with the least-recently-used ones removed if that limit is reached.
+      * The next time a state is requested after being removed, it is restored from your event log.
+      *
+      * @param log Your event log you are restoring state from.
+      * @param maxStates The maximum number of elements to try to keep in memory at once. Initial value is an arbitrary limit of 1024.
+      * @param ttl The ttlation for states to remain in memory. Default is 2 minutes.
+      * @param existenceCheck A function to quickly determine if a state exists or not before consulting the event log.
+      * @return A new `EventStateCache` that loads states into memory and temporarily caches them.
+      */
+    def bounded[K, E, A](
+        log: EventLog[G, E, E],
+        maxStates: Int = 1024,
+        existenceCheck: K => G[Boolean] = (_: K) => true.pure[G]
+    )(implicit keyedState: KeyedState[K, E, A]) = for {
+      deferredMap <- DeferredMap.in[F, G].empty[K, Option[EventState[G, E, Option[A]]]]
+      lru <- LRU.in[F, G, K]
+    } yield new EventStateCache[G, K, E, A] {
+      private def notFound[A]: Either[EmptyState, A] = EmptyState.NotFound.asLeft
+      private def deleted[A]: Either[EmptyState, A] = EmptyState.Deleted.asLeft
+      private def lruUse(k: K) = lru.use(k).flatMap { count =>
+        if (count > maxStates) lru.pop.void
+        else Applicative[G].unit
+      }
+      private def useEventState[B](k: K)(f: EventState[G, E, Option[A]] => G[B]): G[Option[B]] = {
+        val doTheThing: G[Option[B]] = deferredMap
+          .getOrAddF(k) {
+            log.getOneState[K, A](k).unNone.compile.last.flatMap {
+              case Some(state) =>
+                EventState[G].initial[E, A](state).flatMap { es =>
+                  lruUse(k).as(es.some)
+                }
+              case None =>
+                deferredMap.del(k).as(none)
+            }
+          }
+          .flatMap {
+            case Some(es) =>
+              f(es).map(_.some)
+            case None =>
+              none.pure[G]
+          }
+
+        existenceCheck(k).ifM(
+          doTheThing,
+          deferredMap.del(k).as(none)
+        )
+      }
+
+      def use[B](k: K)(f: A => G[B]): G[Option[B]] = {
+        useEventState(k)(_.get.flatMap(_.traverse(f))).flatMap {
+          case Some(Some(v)) => v.some.pure[G]
+          case _             => deferredMap.del(k).as(none)
+        }
+      }
+
+      def useDontCache[B](k: K)(f: A => G[B]): G[Option[B]] = {
+        deferredMap.getOpt(k).flatMap {
+          case Some(Some(es)) => lruUse(k) >> es.get.flatMap(_.traverse(f))
+          case _ =>
+            val getFromLog: G[Option[B]] = log.getOneState[K, A](k).unNone.compile.last.flatMap {
+              case Some(v) => f(v).map(_.some)
+              case None    => none.pure[G]
+            }
+            val del = lru.del(k) >> deferredMap.del(k).as(none[B])
+            existenceCheck(k).ifM(getFromLog, del)
+        }
+      }
+
+      def addOnlyCached(e: E): G[Option[A]] =
+        deferredMap
+          .getOpt(e.getKey)
+          .flatMap {
+            case Some(Some(es)) =>
+              log.add(e) >> lruUse(e.getKey) >> es.doNext(e).flatMap {
+                case Some(v) => v.some.pure[G] //State exists in cache
+                case None    => deferredMap.del(e.getKey).as(none) //Key was deleted after applying event
+              }
+            case Some(None) => log.add(e) >> lru.del(e.getKey) >> deferredMap.del(e.getKey).as(none)
+            case None       => log.add(e).as(none)
+          }
+
+      def addAndCache(e: E): G[Either[EmptyState, A]] =
+        useEventState(e.getKey)(es => log.add(e) >> es.doNext(e)).flatMap {
+          case Some(Some(v)) => v.asRight.pure[G] //State exists in cache
+          case Some(None) =>
+            lru.del(e.getKey) >> deferredMap.del(e.getKey).as(deleted) //Key was deleted after applying event
+          case None =>
+            //State does not exist in cache
+            log.add(e).flatMap { _ =>
+              None.handleEvent(e) match {
+                case Some(v) =>
+                  for {
+                    d <- Deferred.tryable[G, Option[EventState[G, E, Option[A]]]]
+                    es <- EventState[G].initial[E, A](v)
+                    _ <- lru.use(e.getKey)
+                    _ <- d.complete(es.some)
+                    _ <- deferredMap.add(e.getKey)(d)
+                  } yield v.asRight
+                case None => notFound.pure[G]
+              }
+            }
+        }
+
+      def addQuick(e: E): G[Unit] = log.add(e) >> lru.del(e.getKey) >> deferredMap.del(e.getKey).void
+
+    }
+
+    /** Create an EventStateCache backed by the supplied event log.
+      * States are kept in-memory for the specified duration of time, and are then discarded.
+      * The next time a state is requested, it is restored from your event log.
+      *
+      * @param log Your event log you are restoring state from.
+      * @param maxStates The maximum number of elements to try to keep in memory at once. Initial value is an arbitrary limit of 1024.
+      * @param ttl The ttlation for states to remain in memory. Default is 2 minutes.
+      * @param existenceCheck A function to quickly determine if a state exists or not before consulting the event log.
+      * @return A new `EventStateCache` that loads states into memory and temporarily caches them.
+      */
+    def timed[K, E, A](
+        log: EventLog[G, E, E],
+        maxStates: Int = 1024,
+        ttl: FiniteDuration = 2.minutes,
         existenceCheck: K => G[Boolean] = (_: K) => true.pure[G]
     )(implicit keyedState: KeyedState[K, E, A], timer: Timer[G]) = for {
       deferredMap <- DeferredMap.in[F, G].empty[K, Option[ExpiringRef[G, EventState[G, E, Option[A]]]]]
@@ -125,7 +257,7 @@ object EventStateCache {
               case Some(state) =>
                 EventState[G].initial[E, A](state).flatMap { es =>
                   ExpiringRef[G]
-                    .timed(es, dur)
+                    .timed(es, ttl)
                     .flatTap(exp => Concurrent[G].start(exp.expired >> deferredMap.del(k)))
                     .map(_.some)
                 }
@@ -192,7 +324,7 @@ object EventStateCache {
                   for {
                     d <- Deferred.tryable[G, Option[ExpiringRef[G, EventState[G, E, Option[A]]]]]
                     es <- EventState[G].initial[E, A](v)
-                    expref <- ExpiringRef[G].timed(es, dur)
+                    expref <- ExpiringRef[G].timed(es, ttl)
                     _ <- d.complete(expref.some)
                     _ <- deferredMap.add(e.getKey)(d)
                   } yield v.asRight
@@ -203,13 +335,6 @@ object EventStateCache {
 
       def addQuick(e: E): G[Unit] = log.add(e) >> deferredMap.del(e.getKey).void
 
-    }
-
-    def inMemory[K, E, A](dur: FiniteDuration, existenceCheck: K => G[Boolean] = (_: K) => true.pure[G])(implicit
-        keyed: KeyedState[K, E, A],
-        timer: Timer[G]
-    ): F[EventStateCache[G, K, E, A]] = EventLog.inMemory[F, G, E].flatMap { log =>
-      fromEventLog[K, E, A](log, dur, existenceCheck)
     }
   }
 
