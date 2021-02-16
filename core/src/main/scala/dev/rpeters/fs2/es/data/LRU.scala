@@ -10,7 +10,7 @@ import scala.annotation.tailrec
 
 trait LRU[F[_], A] {
   def use(a: A): F[Int]
-  def pop: F[Int]
+  def pop: F[Option[A]]
   def del(a: A): F[Int]
 }
 
@@ -43,14 +43,13 @@ object LRU {
           (resQ -> resS) -> resS.size
         }
       }
-      def pop: G[Int] = ref.modify { case (q, s) =>
+      def pop: G[Option[A]] = ref.modify { case (q, s) =>
         q.dequeueOption
           .map { case (a, tail) =>
             val resS = s - a
-            val size = resS.size
-            (tail -> resS) -> size
+            (tail -> resS) -> a.some
           }
-          .getOrElse((q -> s) -> s.size)
+          .getOrElse((q -> s) -> none)
       }
       def del(a: A): G[Int] = ref.modify { case (q, s) =>
         if (s.contains(a)) {
@@ -62,10 +61,5 @@ object LRU {
         }
       }
     }
-  }
-  private[es] def stub[F[_]: Applicative, A] = new LRU[F, A] {
-    def use(a: A): F[Int] = 0.pure[F]
-    def pop: F[Int] = 0.pure[F]
-    def del(a: A): F[Int] = 0.pure[F]
   }
 }
