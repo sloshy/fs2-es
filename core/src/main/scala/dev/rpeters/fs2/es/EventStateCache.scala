@@ -269,7 +269,7 @@ object EventStateCache {
       def use[B](k: K)(f: A => G[B]): G[Option[B]] = {
         useEventState(k)(_.get.flatMap(_.traverse(f))).flatMap {
           case Some(Some(v)) => v.some.pure[G]
-          case _             => deferredMap.del(k).as(none)
+          case _             => none.pure[G]
         }
       }
 
@@ -369,7 +369,7 @@ object EventStateCache {
       def use[B](k: K)(f: A => G[B]): G[Option[B]] = {
         useEventState(k)(_.get.flatMap(_.traverse(f))).flatMap {
           case Some(Some(v)) => v.some.pure[G]
-          case _             => deferredMap.del(k).as(none)
+          case _             => none.pure[G]
         }
       }
 
@@ -428,14 +428,12 @@ object EventStateCache {
       * The next time a state is requested, it is restored from your event log.
       *
       * @param log Your event log you are restoring state from.
-      * @param maxStates The maximum number of elements to try to keep in memory at once. Initial value is an arbitrary limit of 1024.
       * @param ttl The ttlation for states to remain in memory. Default is 2 minutes.
       * @param existenceCheck A function to quickly determine if a state exists or not before consulting the event log.
       * @return A new `EventStateCache` that loads states into memory and temporarily caches them.
       */
     def timed[K, E, A](
         log: EventLog[G, E, E],
-        maxStates: Int = 1024,
         ttl: FiniteDuration = 2.minutes,
         existenceCheck: K => G[Boolean] = (_: K) => true.pure[G]
     )(implicit keyedState: KeyedState[K, E, A], timer: Timer[G]) = for {
@@ -474,7 +472,7 @@ object EventStateCache {
       def use[B](k: K)(f: A => G[B]): G[Option[B]] = {
         useEventState(k)(_.get.flatMap(_.traverse(f))).flatMap {
           case Some(Some(v)) => v.some.pure[G]
-          case _             => deferredMap.del(k).as(none)
+          case _             => none.pure[G]
         }
       }
 
