@@ -12,6 +12,7 @@ trait LRU[F[_], A] {
   def use(a: A): F[Int]
   def pop: F[Option[A]]
   def del(a: A): F[Int]
+  def dump: F[Queue[A]]
 }
 
 object LRU {
@@ -25,9 +26,10 @@ object LRU {
         def go(o: Option[A], acc: Queue[A]): Queue[A] = o match {
           case Some(next) =>
             if (pred(next)) {
-              acc ++ it.to(Queue)
+              acc ++ Queue.from(it)
+            } else {
+              go(it.nextOption, acc :+ next)
             }
-            go(it.nextOption, acc :+ next)
           case None => acc
         }
 
@@ -60,6 +62,7 @@ object LRU {
           (q -> s) -> s.size
         }
       }
+      def dump: G[Queue[A]] = ref.get.map(_._1)
     }
   }
 }
