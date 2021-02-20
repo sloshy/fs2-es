@@ -2,14 +2,14 @@ options:
   - title: Intro
     url: docs/
   - title: Type Classes
-    url: docs/type classes/
+    url: docs/typeclasses/
     nested_options:
       - title: Driven
-        url: docs/type classes/driven/
+        url: docs/typeclasses/driven/
       - title: Keyed
-        url: docs/type classes/keyed/
+        url: docs/typeclasses/keyed/
       - title: KeyedState
-        url: docs/type classes/keyedstate/
+        url: docs/typeclasses/keyedstate/
   - title: EventState
     url: docs/eventstate/
   - title: ExpiringRef
