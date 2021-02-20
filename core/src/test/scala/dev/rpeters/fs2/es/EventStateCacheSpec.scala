@@ -32,12 +32,21 @@ class EventStateCacheSpec extends BaseTestSpec {
 
   }
 
-  def logAndCache = EventLog.inMemory[IO, Event].flatMap { log =>
-    EventStateCache[IO].fromEventLog[String, Event, Int](log).tupleLeft(log)
-  }
+  def logsAndCaches: IO[List[(EventLog[IO, Event, Event], EventStateCache[IO, String, Event, Int])]] = List(
+    getEventLog.flatMap { log => EventStateCache[IO].unbounded[String, Event, Int](log).tupleLeft(log) },
+    getEventLog.flatMap { log => EventStateCache[IO].bounded[String, Event, Int](log).tupleLeft(log) },
+    getEventLog.flatMap { log => EventStateCache[IO].timed[String, Event, Int](log).tupleLeft(log) },
+    getEventLog.flatMap { log => EventStateCache[IO].timedBounded[String, Event, Int](log).tupleLeft(log) }
+  ).sequence
 
-  def withLogAndCache(f: (EventLog[IO, Event, Event], EventStateCache[IO, String, Event, Int]) => IO[Unit]) =
-    logAndCache.flatMap { case (log, cache) => f(log, cache) }
+  def withLogAndCache(
+      f: (EventLog[IO, Event, Event], EventStateCache[IO, String, Event, Int]) => IO[Unit]
+  ): IO[Unit] = {
+    logsAndCaches.flatMap { list =>
+      list.traverse { case (log, cache) => f(log, cache) }.void
+    }
+  }
+  // logAndCache.flatMap { case (log, cache) => f(log, cache) }
 
   test("use should always return None with an empty event log") {
     forAllF { key: String =>
@@ -127,43 +136,12 @@ class EventStateCacheSpec extends BaseTestSpec {
     }
   }
 
-  //TODO: figure out using test context w/ munit cats effect and scalacheck
-  test("should reload state when not cached") {
-    // val tc = TestContext()
-    // val cs = tc.ioContextShift
-    // val timer = tc.ioTimer
-    forAllF { (key: String, value: Int) =>
-      getEventLogWithStreamCounter.flatMap { case (log, streamCount) =>
-        EventStateCache[IO]
-          .fromEventLog[String, Event, Int](log, 0.5.seconds)
-          .flatMap { cache =>
-            val use = cache.use(key)(_.pure[IO])
-            val useDontCache = cache.useDontCache(key)(_.pure[IO])
-            for {
-              _ <- log.add(Event(key, value))
-              _ <- streamCount.get.assertEquals(0)
-              _ <- useDontCache
-              _ <- useDontCache
-              _ <- streamCount.get.assertEquals(2)
-              _ <- use
-              _ <- use //Should be cached here
-              _ <- streamCount.get.assertEquals(3)
-              // _ <- Timer[IO].sleep(2.seconds) //Wait until cache item is expired
-              // _ <- use
-              // _ <- streamCount.get.assertEquals(4)
-            } yield ()
-          }
-      }
-    }
-  }
-
   test("should not load state if the existence check returns false") {
     forAllF { (key: String, value: Int) =>
       getEventLog.flatMap { log =>
-        EventStateCache[IO].fromEventLog[String, Event, Int](log, existenceCheck = _ => IO.pure(false)).flatMap {
-          cache =>
-            log
-              .add(Event(key, value)) >> cache.use(key)(_.pure[IO]).assertEquals(none, "Existence check is not working")
+        EventStateCache[IO].unbounded[String, Event, Int](log, existenceCheck = _ => IO.pure(false)).flatMap { cache =>
+          log
+            .add(Event(key, value)) >> cache.use(key)(_.pure[IO]).assertEquals(none, "Existence check is not working")
         }
       }
     }
