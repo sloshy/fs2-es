@@ -11,7 +11,7 @@ import syntax._
 import scala.concurrent.duration._
 
 /** Caches EventState values by key, allowing you to use event-sourced state repeatedly. */
-sealed trait EventStateCache[F[_], K, E, A] {
+sealed trait EventStateCache[F[_], K, E, A] { self =>
 
   /** Access some state by key if it exists in your event log.
     *
@@ -36,7 +36,8 @@ sealed trait EventStateCache[F[_], K, E, A] {
     */
   def useDontCache[B](k: K)(f: A => F[B]): F[Option[B]]
 
-  /** Applies an event to your event log, and then to any in-memory states, without creating new states.
+  /** Applies an event to your event log, and then to any in-memory states.
+    * If necessary, will try to load state from the event log and cache state as necessary.
     *
     * If you would like newly-initialized states to be cached in-memory, use `addAndCache` instead.
     *
@@ -95,6 +96,27 @@ sealed trait EventStateCache[F[_], K, E, A] {
     * This ensures that, if you try to use state that these events map to, you will get the correct state back.
     */
   def hookupQuickWithInput(implicit F: Functor[F]): Pipe[F, E, E] = _.evalMap(e => addQuick(e).as(e))
+
+  /** Similar to `EventLog#localizeInput`, this allows you to transform the expected input event type. */
+  def localizeInput[EE](f: EE => E): EventStateCache[F, K, EE, A] = new EventStateCache[F, K, EE, A] {
+    def use[B](k: K)(f: A => F[B]): F[Option[B]] = self.use(k)(f)
+    def useDontCache[B](k: K)(f: A => F[B]): F[Option[B]] = self.useDontCache(k)(f)
+    def addOnlyCached(e: EE): F[Option[A]] = self.addOnlyCached(f(e))
+    def addAndCache(e: EE): F[Either[EmptyState, A]] = self.addAndCache(f(e))
+    def addQuick(e: EE): F[Unit] = self.addQuick((f(e)))
+  }
+
+  /** Similar to `EventLog#mapOutput`, this allows you to transform the state result on output.
+    * Note: does not affect stored states, only the output value.
+    */
+  def mapState[AA](mapF: A => AA)(implicit F: Applicative[F]): EventStateCache[F, K, E, AA] =
+    new EventStateCache[F, K, E, AA] {
+      def use[B](k: K)(f: AA => F[B]): F[Option[B]] = self.use(k)(a => f(mapF(a)))
+      def useDontCache[B](k: K)(f: AA => F[B]): F[Option[B]] = self.useDontCache(k)(a => f(mapF(a)))
+      def addOnlyCached(e: E): F[Option[AA]] = self.addOnlyCached(e).map(_.map(mapF))
+      def addAndCache(e: E): F[Either[EmptyState, AA]] = self.addAndCache(e).map(_.map(mapF))
+      def addQuick(e: E): F[Unit] = self.addQuick(e)
+    }
 }
 
 object EventStateCache {
