@@ -38,5 +38,5 @@ implicit val keyed: Keyed[String, UserEvent] = Keyed.instance(_.name)
 UserCreated("Ryan").getKey
 ```
 
-When used together with [`Driven`](driven.md) or `DrivenNonEmpty`, you can form a [`KeyedState`](keyedstate.md) instance.
-This can be useful with certain methods on [`EventLog`](eventlog.md) and [`EventStateCache`](eventstatecache.md) which require it for streaming keyed state.
+When used together with [`Driven`](driven/) or `DrivenNonEmpty`, you can form a [`KeyedState`](keyedstate/) instance.
+This can be useful with certain methods on [`EventLog`](../eventlog/) and [`EventStateCache`](../eventstatecache/) which require it for streaming keyed state.

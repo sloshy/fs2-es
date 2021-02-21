@@ -4,7 +4,7 @@ title: EventStateCache
 permalink: /docs/eventstatecache/
 ---
 # EventStateCache
-With [`EventLog`](eventlog.md) we can retrieve all of the keyed states from our event log at any time.
+With [`EventLog`](eventlog/) we can retrieve all of the keyed states from our event log at any time.
 Constantly streaming from the log to retrieve states, however, is not ideal and a waste of resources.
 It makes sense that we would want to hold certain states in memory for certain periods of time in the average application, so for that, we have `EventStateCache`.
 
@@ -50,7 +50,7 @@ If state exists in your log or in memory, your function to state will apply.
 If it does not exist presently for any reason, you will receive `None`.
 
 ## Example
-To create an `EventStateCache`, you need an instance of [`KeyedState`](keyedstate.md) for your state type.
+To create an `EventStateCache`, you need an instance of [`KeyedState`](typeclasses/keyedstate/) for your state type.
 First, you must define your state's `Driven` instance and your event's `Keyed` instance, like so:
 ```scala mdoc:silent
 import dev.rpeters.fs2.es._

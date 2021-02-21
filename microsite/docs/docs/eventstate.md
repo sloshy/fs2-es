@@ -68,7 +68,7 @@ As their names imply, they are based on `SignallingRef` and `Topic` respectively
 If you are doing signal processing, where you occasionally check a state value but only care about what state it is *right now* and not any intermediate states, `SignallingEventState` might be for you.
 On the other hand, if you want to broadcast your state changes across your application, look into `EventStateTopic`.
 
-If you are debugging, look into [`ReplayableEventState`](testing.md) from the testing package, which is based on `EventStateTopic` and also allows you to seek forwards and backwards through your states, using time-travel debugging.
+If you are debugging, look into [`ReplayableEventState`](testing/) from the testing package, which is based on `EventStateTopic` and also allows you to seek forwards and backwards through your states, using time-travel debugging.
 
 ## Transformation Syntax
 You can transform `EventState`, `SignallingEventState`, and `EventStateTopic` values with special syntax ops available if you import `dev.rpeters.fs2.es.syntax._`.

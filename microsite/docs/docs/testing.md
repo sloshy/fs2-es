@@ -5,7 +5,7 @@ permalink: /docs/testing/
 ---
 # Testing
 A concept that sometimes appears in event-based programming is the idea of "time-travel debugging", or the ability to go forward and back in time.
-Because [`EventState`](eventstate.md) enforces a linear, event-driven access pattern, that means that we are able to store all modifications to state and replay them, giving you access to all possible states that have been achieved.
+Because [`EventState`](eventstate/) enforces a linear, event-driven access pattern, that means that we are able to store all modifications to state and replay them, giving you access to all possible states that have been achieved.
 If you install the `fs2-es-testing` module, you'll be able to use `ReplayableEventState` which is an extension of `EventStateTopic` with special testing and debugging methods.
 
 First, add the testing module to your project (available for ScalaJS 1.x as well):
