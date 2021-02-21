@@ -69,3 +69,13 @@ If you are doing signal processing, where you occasionally check a state value b
 On the other hand, if you want to broadcast your state changes across your application, look into `EventStateTopic`.
 
 If you are debugging, look into [`ReplayableEventState`](testing.md) from the testing package, which is based on `EventStateTopic` and also allows you to seek forwards and backwards through your states, using time-travel debugging.
+
+## Transformation Syntax
+You can transform `EventState`, `SignallingEventState`, and `EventStateTopic` values with special syntax ops available if you import `dev.rpeters.fs2.es.syntax._`.
+They are defined as follows:
+
+* `attachLog` - Attaches an `EventLog` to your `EventState` so that when you `doNext`, you also add it to the underlying event log.
+* `attachLogAndApply` - Same as `attachLog` but also pre-applies all existing state from the event log to your `EventState`.
+* `localizeInput` - Transform the expected event type with a function. Similar to `Kleisli#local` or `EventLog#localizeInput`.
+* `mapState` - Map the resulting state value so that all operations that return state have this function applied.
+  * **NOTE:** If used with `SignallingEventState` and you use `discrete` or `continuous` operators, this will not affect those results. So you will still see the same outputs emitted, with this function applied afterward, and not before. For example, if you map the result to a constant value, and you use `discrete`, you will see states emitted even if the output does not change, because the underlying value you are tranforming has changed.
