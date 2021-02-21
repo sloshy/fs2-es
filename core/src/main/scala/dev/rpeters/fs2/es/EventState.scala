@@ -1,6 +1,6 @@
 package dev.rpeters.fs2.es
 
-import cats.Functor
+import cats.{Applicative, Functor}
 import cats.effect.{Concurrent, Sync}
 import cats.effect.concurrent.Ref
 import cats.syntax.all._
@@ -123,6 +123,49 @@ object EventState {
         state <- Ref.in[F, G, A](a)
       } yield finalState(state, f)
   }
+
+  /** Selects the set of constructors for a base `EventState`.
+    * Also see `topic` and `signalling`.
+    */
+  def apply[F[_]: Sync] = new EventStatePartiallyApplied[F, F]()
+
+  def in[F[_]: Sync, G[_]: Sync] = new EventStatePartiallyApplied[F, G]()
+
+  /** Selects the set of constructors for an `EventStateTopic`, a variant of `EventState` that is subscribable. */
+  def topic[F[_]: Concurrent] = new EventStateTopic.EventStateTopicPartiallyApplied[F, F]()
+
+  def topicIn[F[_]: Sync, G[_]: Concurrent] = new EventStateTopic.EventStateTopicPartiallyApplied[F, G]()
+
+  /** Selects the set of constructors for a `SignallingEventState`, a variant of `EventState` that is continuously monitorable. */
+  def signalling[F[_]: Concurrent] = new SignallingEventState.SignallingEventStatePartiallyApplied[F, F]()
+
+  def signallingIn[F[_]: Sync, G[_]: Concurrent] = new SignallingEventState.SignallingEventStatePartiallyApplied[F, G]()
+
+  implicit def attachLogEventState[F[_]: Applicative, E, A]: EventStateLogOps[F, EventState[F, *, *], E, A] =
+    new EventStateLogOps[F, EventState[F, *, *], E, A] {
+      def attachLog(s: EventState[F, E, A])(log: EventLog[F, E, _]): EventState[F, E, A] = new EventState[F, E, A] {
+        def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
+        def get: F[A] = s.get
+      }
+
+      def localizeInput[EE](s: EventState[F, E, A])(f: EE => E): EventState[F, EE, A] = new EventState[F, EE, A] {
+        def doNext(e: EE): F[A] = s.doNext(f(e))
+        def get: F[A] = s.get
+      }
+
+      def mapState[AA](s: EventState[F, E, A])(f: A => AA): EventState[F, E, AA] = new EventState[F, E, AA] {
+        def doNext(e: E): F[AA] = s.doNext(e).map(f)
+        def get: F[AA] = s.get.map(f)
+      }
+
+      def attachLogAndApply(s: EventState[F, E, A])(log: EventLog[F, E, E]): Stream[F, EventState[F, E, A]] =
+        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+
+    }
+}
+
+object EventStateTopic {
+
   final class EventStateTopicPartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
     private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: (E, A) => A) =
       state.updateAndGet(ef(e, _))
@@ -180,6 +223,47 @@ object EventState {
         topic <- Topic.in[F, G, A](a)
       } yield finalState(state, topic, f)
   }
+
+  def apply[F[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, F]()
+
+  def in[F[_]: Sync, G[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, G]()
+
+  implicit def attachLogEventStateTopic[F[_]: Applicative, E, A]: EventStateLogOps[F, EventStateTopic[F, *, *], E, A] =
+    new EventStateLogOps[F, EventStateTopic[F, *, *], E, A] {
+      def attachLog(s: EventStateTopic[F, E, A])(log: EventLog[F, E, _]): EventStateTopic[F, E, A] =
+        new EventStateTopic[F, E, A] {
+          def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
+          def get: F[A] = s.get
+          def subscribe: Stream[F, A] = s.subscribe
+          def hookupAndSubscribe: fs2.Pipe[F, E, A] = _.evalTap(log.add).through(s.hookupAndSubscribe)
+        }
+
+      def localizeInput[EE](s: EventStateTopic[F, E, A])(f: EE => E): EventStateTopic[F, EE, A] =
+        new EventStateTopic[F, EE, A] {
+          def doNext(e: EE): F[A] = s.doNext(f(e))
+          def get: F[A] = s.get
+          def subscribe: Stream[F, A] = s.subscribe
+          def hookupAndSubscribe: fs2.Pipe[F, EE, A] = _.map(f).through(s.hookupAndSubscribe)
+        }
+
+      def mapState[AA](s: EventStateTopic[F, E, A])(f: A => AA): EventStateTopic[F, E, AA] =
+        new EventStateTopic[F, E, AA] {
+          def doNext(e: E): F[AA] = s.doNext(e).map(f)
+          def get: F[AA] = s.get.map(f)
+          def subscribe: Stream[F, AA] = s.subscribe.map(f)
+          def hookupAndSubscribe: fs2.Pipe[F, E, AA] = _.through(s.hookupAndSubscribe).map(f)
+        }
+
+      def attachLogAndApply(s: EventStateTopic[F, E, A])(
+          log: EventLog[F, E, E]
+      ): Stream[F, EventStateTopic[F, E, A]] =
+        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+
+    }
+}
+
+object SignallingEventState {
+
   final class SignallingEventStatePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
     private def doNextInternal[E, A](e: E, ef: (E, A) => A, state: SignallingRef[G, A]) =
       state.modify { internalA =>
@@ -235,20 +319,41 @@ object EventState {
       } yield finalState(state, f)
   }
 
-  /** Selects the set of constructors for a base `EventState`.
-    * Also see `topic` and `signalling`.
-    */
-  def apply[F[_]: Sync] = new EventStatePartiallyApplied[F, F]()
+  def apply[F[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, F]()
 
-  def in[F[_]: Sync, G[_]: Sync] = new EventStatePartiallyApplied[F, G]()
+  def in[F[_]: Sync, G[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, G]()
 
-  /** Selects the set of constructors for an `EventStateTopic`, a variant of `EventState` that is subscribable. */
-  def topic[F[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, F]()
+  implicit def attachLogSignallingEventState[F[_]: Applicative, E, A]
+      : EventStateLogOps[F, SignallingEventState[F, *, *], E, A] =
+    new EventStateLogOps[F, SignallingEventState[F, *, *], E, A] {
+      def attachLog(s: SignallingEventState[F, E, A])(log: EventLog[F, E, _]): SignallingEventState[F, E, A] =
+        new SignallingEventState[F, E, A] {
+          def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
+          def get: F[A] = s.get
+          def discrete: Stream[F, A] = s.discrete
+          def continuous: Stream[F, A] = s.continuous
+        }
 
-  def topicIn[F[_]: Sync, G[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, G]()
+      def localizeInput[EE](s: SignallingEventState[F, E, A])(f: EE => E): SignallingEventState[F, EE, A] =
+        new SignallingEventState[F, EE, A] {
+          def doNext(e: EE): F[A] = s.doNext(f(e))
+          def get: F[A] = s.get
+          def discrete: Stream[F, A] = s.discrete
+          def continuous: Stream[F, A] = s.continuous
+        }
 
-  /** Selects the set of constructors for a `SignallingEventState`, a variant of `EventState` that is continuously monitorable. */
-  def signalling[F[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, F]()
+      def mapState[AA](s: SignallingEventState[F, E, A])(f: A => AA): SignallingEventState[F, E, AA] =
+        new SignallingEventState[F, E, AA] {
+          def doNext(e: E): F[AA] = s.doNext(e).map(f)
+          def get: F[AA] = s.get.map(f)
+          def discrete: Stream[F, AA] = s.discrete.map(f)
+          def continuous: Stream[F, AA] = s.continuous.map(f)
+        }
 
-  def signallingIn[F[_]: Sync, G[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, G]()
+      def attachLogAndApply(s: SignallingEventState[F, E, A])(
+          log: EventLog[F, E, E]
+      ): Stream[F, SignallingEventState[F, E, A]] =
+        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+
+    }
 }
