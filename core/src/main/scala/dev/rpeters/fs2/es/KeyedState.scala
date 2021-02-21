@@ -2,7 +2,6 @@ package dev.rpeters.fs2.es
 
 import cats.syntax.all._
 import syntax._
-import cats.data.State
 
 /** Describes some state that can be initialized by a key, and driven by events.
   *
