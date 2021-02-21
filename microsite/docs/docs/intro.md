@@ -39,5 +39,5 @@ You can very easily build your own event log just by serializing events and putt
 This library chooses to focus on some of the more easily composable parts of event sourcing.
 To that end, it comes with a few useful utilities you should get to know.
 
-If you are just getting started, start learning with [`EventState`](eventstate.md) and the various [`Type Classes`](typeclasses.md)
+If you are just getting started, start learning with [`EventState`](eventstate.md) and the various [Type Classes](typeclasses.md)
 
