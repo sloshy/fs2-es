@@ -16,6 +16,13 @@ object KeyedState {
   def apply[K, E, A](implicit instance: KeyedState[K, E, A]) = instance
 
   /** Define this type `A` as driven by events `E` with keys `K` in each event.
+    * Alias for `instance` but without implicits.
+    *
+    * @return An instance of `KeyedState` for your state type.
+    */
+  def from[K, E, A](driven: Driven[E, A], keyed: Keyed[K, E]) = instance(driven, keyed)
+
+  /** Define this type `A` as driven by events `E` with keys `K` in each event.
     *
     * @return An instance of `KeyedState` for your state type.
     */

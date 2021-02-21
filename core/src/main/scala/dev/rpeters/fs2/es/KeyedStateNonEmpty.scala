@@ -18,7 +18,16 @@ object KeyedStateNonEmpty {
 
   def apply[K, E, A](implicit instance: KeyedStateNonEmpty[K, E, A]) = instance
 
-  /** Define how to apply events to an optional value of this type
+  /** Define how to apply events to a state value.
+    * Alias for `instance` but without implicits.
+    *
+    * @param canInitialize A function that determines what events can be used to initialize state
+    * @param f Given an event and an optional state, apply it to that state.
+    * @return An instance of `DrivenInitial` for your state type.
+    */
+  def from[K, E, A](driven: DrivenNonEmpty[E, A], keyed: Keyed[K, E]) = instance(driven, keyed)
+
+  /** Define how to apply events to a state value.
     *
     * @param canInitialize A function that determines what events can be used to initialize state
     * @param f Given an event and an optional state, apply it to that state.
