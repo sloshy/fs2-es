@@ -1,8 +1,7 @@
 package dev.rpeters.fs2.es
 
 import cats.data.{Chain, NonEmptyMap}
-import cats.effect.Sync
-import cats.effect.concurrent.Ref
+import cats.effect.kernel.{Concurrent, Ref}
 import cats.syntax.all._
 import fs2.{Chunk, Pipe, Stream}
 import fs2.concurrent.Topic
@@ -133,13 +132,10 @@ trait EventLog[F[_], In, Out] { self =>
 object EventLog {
 
   /** Create an in-memory `EventLog`. */
-  def inMemory[F[_]: Sync, E] = inMemory[F, F, E]
-
-  /** Create an in-memory `EventLog` using two different effect types. */
-  def inMemory[F[_]: Sync, G[_]: Sync, E] = Ref.in[F, G, Chain[E]](Chain.nil).map { ref =>
-    new EventLog[G, E, E] {
-      def add(e: E): G[Unit] = ref.update(_ :+ e)
-      def stream: Stream[G, E] =
+  def inMemory[F[_]: Concurrent, E] = Ref[F].of[Chain[E]](Chain.nil).map { ref =>
+    new EventLog[F, E, E] {
+      def add(e: E): F[Unit] = ref.update(_ :+ e)
+      def stream: Stream[F, E] =
         Stream.eval(ref.get).map(Chunk.chain).flatMap(Stream.chunk)
     }
   }

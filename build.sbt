@@ -1,9 +1,9 @@
 import microsites._
 
 //Deps
-val agitationV = "0.2.0"
-val catsEffectV = "2.3.1"
-val fs2V = "2.5.0"
+val agitationV = "0.2.0+57-d0ced4ce-SNAPSHOT"
+val catsEffectV = "3.0.0-RC2"
+val fs2V = "3.0.0-M8"
 val munitV = "0.7.21"
 val munitCatsEffectV = "0.13.0"
 val scalacheckEffectV = "0.7.0"
@@ -30,10 +30,11 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % agitationV,
+      "org.typelevel" %%% "cats-effect-kernel" % catsEffectV,
       "org.typelevel" %%% "cats-effect-laws" % catsEffectV % Test,
       "org.scalameta" %%% "munit-scalacheck" % munitV % Test,
-      "org.typelevel" %%% "munit-cats-effect-2" % munitCatsEffectV % "test",
-      "org.typelevel" %%% "scalacheck-effect-munit" % scalacheckEffectV % "test"
+      "org.typelevel" %%% "munit-cats-effect-3" % munitCatsEffectV % "test"
+      // "org.typelevel" %%% "scalacheck-effect-munit" % scalacheckEffectV % "test"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq(scala212, scala213),

@@ -81,9 +81,7 @@ implicit val keyedState: KeyedState[String, UserEvent, User] = KeyedState.from(d
 
 We can now create an `EventStateCache` as follows:
 ```scala mdoc:silent
-import cats.effect.{ContextShift, IO}
-
-implicit val cs: ContextShift[IO] = IO.contextShift(scala.concurrent.ExecutionContext.global)
+import cats.effect.IO
 
 val getEventLog = EventLog.inMemory[IO, UserEvent]
 
@@ -120,6 +118,8 @@ val fullProgram = getEventStateCache.flatMap { cache =>
 }
 ```
 ```scala mdoc
+import cats.effect.unsafe.implicits.global
+
 fullProgram.unsafeRunSync()
 ```
 

@@ -12,11 +12,7 @@ Here is a simple example:
 ```scala mdoc:silent
 import cats.effect.IO
 import dev.rpeters.fs2.es.data.ExpiringRef
-import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
-
-implicit val cs = IO.contextShift(global)
-implicit val timer = IO.timer(global)
 
 val timedRef = for {
   res <- ExpiringRef[IO].timed(1, 2.seconds)
@@ -26,6 +22,8 @@ val timedRef = for {
 } yield (firstResult, secondResult)
 ```
 ```scala mdoc
+import cats.effect.unsafe.implicits.global
+
 timedRef.unsafeRunSync()
 ```
 

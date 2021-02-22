@@ -1,8 +1,7 @@
 package dev.rpeters.fs2.es.data
 
 import cats.implicits._
-import cats.effect.concurrent.Ref
-import cats.effect.Sync
+import cats.effect.kernel.{Concurrent, Ref}
 
 /** A concurrent `Map` of values that you can modify without worrying about thread safety. */
 sealed trait MapRef[F[_], K, V] {
@@ -24,33 +23,30 @@ sealed trait MapRef[F[_], K, V] {
 }
 
 object MapRef {
-  final class MapRefPartiallyApplied[F[_]: Sync, G[_]: Sync]() {
-    private def mapFromRef[K, V](ref: Ref[G, Map[K, V]]) = new MapRef[G, K, V] {
-      def add(kv: (K, V)): G[Unit] = ref.update(_ + kv)
-      def del(k: K): G[Boolean] = ref.modify(m => m.get(k).fold(m -> false)(_ => m - k -> true))
-      def get(k: K): G[Option[V]] = ref.get.map(_.get(k))
-      def modify[A](k: K)(f: V => (V, A)): G[Option[A]] = ref.modify { map =>
+  final class MapRefPartiallyApplied[F[_]: Concurrent]() {
+    private def mapFromRef[K, V](ref: Ref[F, Map[K, V]]) = new MapRef[F, K, V] {
+      def add(kv: (K, V)): F[Unit] = ref.update(_ + kv)
+      def del(k: K): F[Boolean] = ref.modify(m => m.get(k).fold(m -> false)(_ => m - k -> true))
+      def get(k: K): F[Option[V]] = ref.get.map(_.get(k))
+      def modify[A](k: K)(f: V => (V, A)): F[Option[A]] = ref.modify { map =>
         val resultOpt = map.get(k).map(f)
         resultOpt.fold(map -> Option.empty[A]) { result =>
           (map + (k -> result._1), result._2.some)
         }
       }
-      def upsertOpt[A](k: K)(f: Option[V] => (V, A)): G[A] = ref.modify { map =>
+      def upsertOpt[A](k: K)(f: Option[V] => (V, A)): F[A] = ref.modify { map =>
         val (v, a) = f(map.get(k))
         (map + (k -> v), a)
       }
     }
 
     /** Construct an empty `MapRef`. */
-    def empty[K, V] = Ref.in[F, G, Map[K, V]](Map.empty).map(mapFromRef)
+    def empty[K, V] = Ref.of[F, Map[K, V]](Map.empty).map(mapFromRef)
 
     /** Construct a `MapRef` from a map of pure values. */
-    def of[K, V](map: Map[K, V]) = Ref.in[F, G, Map[K, V]](map).map(mapFromRef)
+    def of[K, V](map: Map[K, V]) = Ref.of[F, Map[K, V]](map).map(mapFromRef)
   }
 
-  /** A set of constructors for `MapRef` using the same effect type for everything. */
-  def apply[F[_]: Sync] = new MapRefPartiallyApplied[F, F]
-
-  /** A set of constructors for `MapRef` where you can use a different effect for your internal `MapRef`. */
-  def in[F[_]: Sync, G[_]: Sync] = new MapRefPartiallyApplied[F, G]
+  /** A set of constructors for `MapRef`. */
+  def apply[F[_]: Concurrent] = new MapRefPartiallyApplied[F]
 }

@@ -1,14 +1,13 @@
 package dev.rpeters.fs2.es.data
 
 import cats.implicits._
-import cats.effect._
 import cats.effect.implicits._
-import cats.effect.concurrent.Deferred
-import cats.effect.concurrent.Ref
+import cats.effect.kernel.{Deferred, Ref, Temporal}
 import cats.Applicative
 import io.chrisdavenport.agitation.Agitation
-import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.duration.Duration
+
+import scala.concurrent.duration.{Duration, FiniteDuration}
+import cats.effect.Concurrent
 
 sealed trait ExpiringRef[F[_], A] {
 
@@ -23,11 +22,11 @@ object ExpiringRef {
   final class ExpiringRefPartiallyApplied[F[_]: Concurrent]() {
 
     /** Construct an `ExpiringRef` that expires references after `dur` time between uses. */
-    def timed[A](a: A, dur: FiniteDuration)(implicit ev: Timer[F]) =
+    def timed[A](a: A, dur: FiniteDuration)(implicit ev: Temporal[F]) =
       for {
         ag <- Agitation.timed[F](dur)
         countRef <- Ref[F].of(0)
-        isExpired <- Deferred.tryable[F, Unit]
+        isExpired <- Deferred[F, Unit]
         _ <- (ag.settled >> isExpired.complete(())).start
       } yield new ExpiringRef[F, A] {
         def use[B](f: A => F[B]): F[Option[B]] = {
@@ -80,5 +79,5 @@ object ExpiringRef {
       }
   }
 
-  def apply[F[_]: Concurrent] = new ExpiringRefPartiallyApplied[F]()
+  def apply[F[_]: Temporal] = new ExpiringRefPartiallyApplied[F]()
 }

@@ -18,10 +18,6 @@ You can create one the exact same way as other `EventState` implementations, eit
 import cats.effect._
 import cats.implicits._
 import dev.rpeters.fs2.es.testing.ReplayableEventState
-import scala.concurrent.ExecutionContext.global
-
-//Allows us to do concurrent actions, not required if using IOApp
-implicit val cs = IO.contextShift(global)
 
 //Creates a new ReplayableEventState on each invocation that adds integers to state
 val newState = ReplayableEventState[IO].manualTotal[Int, Int](0)(_ + _)
@@ -42,6 +38,8 @@ val eventsTest = for {
 } yield (state, events)
 ```
 ```scala mdoc
+import cats.effect.unsafe.implicits.global
+
 eventsTest.flatMap { case (state, events) =>
   IO(println(s"State: $state")) >> IO(println(s"Events: $events"))
 }.unsafeRunSync()

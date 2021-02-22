@@ -41,6 +41,8 @@ val intEventStateExample = getIntEventState.flatMap { es =>
 }
 ```
 ```scala mdoc
+import cats.effect.unsafe.implicits.global
+
 intEventStateExample.unsafeRunSync()
 ```
 
