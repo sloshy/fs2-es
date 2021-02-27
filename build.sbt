@@ -9,7 +9,7 @@ val munitCatsEffectV = "0.13.0"
 val scalacheckEffectV = "0.7.0"
 
 val scala213 = "2.13.4"
-val scala212 = "2.12.13"
+val scala212 = "2.13.5"
 
 val commonSettings = Seq(
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
