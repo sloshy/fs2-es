@@ -31,10 +31,10 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % agitationV,
       "org.typelevel" %%% "cats-effect-kernel" % catsEffectV,
-      "org.typelevel" %%% "cats-effect-laws" % catsEffectV % Test,
+      "org.typelevel" %%% "cats-effect-testkit" % catsEffectV % Test,
       "org.scalameta" %%% "munit-scalacheck" % munitV % Test,
-      "org.typelevel" %%% "munit-cats-effect-3" % munitCatsEffectV % "test"
-      // "org.typelevel" %%% "scalacheck-effect-munit" % scalacheckEffectV % "test"
+      "org.typelevel" %%% "munit-cats-effect-3" % munitCatsEffectV % "test",
+      "org.typelevel" %%% "scalacheck-effect-munit" % scalacheckEffectV % "test"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     crossScalaVersions := Seq(scala212, scala213),

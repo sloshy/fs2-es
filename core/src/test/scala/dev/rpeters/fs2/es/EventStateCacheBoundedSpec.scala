@@ -2,8 +2,7 @@ package dev.rpeters.fs2.es
 
 import cats.data.Chain
 import cats.effect.IO
-import cats.effect.concurrent.Ref
-import cats.effect.laws.util.TestContext
+import cats.effect.kernel.Ref
 import cats.syntax.all._
 import fs2.{Chunk, Stream}
 import org.scalacheck.effect.PropF._

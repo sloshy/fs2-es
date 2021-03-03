@@ -2,14 +2,12 @@ package dev.rpeters.fs2.es
 
 import cats.data.Chain
 import cats.effect._
-import cats.effect.concurrent.Ref
+import cats.effect.kernel.Ref
 import cats.syntax.all._
 import fs2.Stream
 import org.scalacheck.effect.PropF._
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits._
-import cats.effect.laws.util.TestContext
 
 class EventStateCacheSpec extends BaseTestSpec {
 
@@ -20,6 +18,8 @@ class EventStateCacheSpec extends BaseTestSpec {
   def getEventLogWithStreamCounter = Ref[IO].of(0).flatMap { ref =>
     getEventLog.map(_.mapStream(Stream.eval_(ref.update(_ + 1)) ++ _)).tupleRight(ref)
   }
+
+  val baseKey = "baseKey"
 
   implicit val keyedState = new KeyedState[String, Event, Int] {
     def handleEvent(a: Int)(e: Event): Option[Int] = (a + e.value).some
@@ -145,5 +145,92 @@ class EventStateCacheSpec extends BaseTestSpec {
         }
       }
     }
+  }
+
+  test("timed") {
+    val (tc, rt) = createDeterministicRuntime
+
+    val testTimed = getEventLogWithStreamCounter.flatMap { case (log, ref) =>
+      EventStateCache[IO].timed[String, Event, Int](log, ttl = 2.seconds).flatMap { cache =>
+        val keys = (1 to 4).toList.map(i => s"$baseKey$i")
+        val events = (1 to 4).toList.zip(keys).map { case (a, b) => Event(b, a) }
+        val addEvents = events.traverse(log.add)
+
+        val getCount = ref.get
+
+        def use(k: String) = cache.use(k)(_ => IO.unit)
+
+        for {
+          _ <- addEvents
+          _ <- getCount.assertEquals(0, "Initial stream count should be 0")
+          _ <- use(keys(0))
+          _ <- use(keys(1))
+          _ <- use(keys(2))
+          _ <- getCount.assertEquals(3, "All new states should be streamed")
+          _ <- use(keys(3))
+          _ <- getCount.assertEquals(4, "Streaming past max limit kicks least-recently-used out of cache")
+          _ <- use(keys(0))
+          _ <- use(keys(1))
+          _ <- use(keys(2))
+          _ <- use(keys(3))
+          _ <- getCount.assertEquals(4, "Asking for keys in cache does not stream")
+          _ <- IO.sleep(3.seconds)
+          _ <- use(keys(0))
+          _ <- use(keys(1))
+          _ <- use(keys(2))
+          _ <- use(keys(3))
+          _ <- getCount.assertEquals(8, "Waiting for keys to expire reloads state from event log")
+        } yield ()
+      }
+    }
+
+    val fut = testTimed.unsafeToFuture()(rt)
+
+    tc.tick(3.seconds)
+
+    fut
+  }
+
+  test("timedBounded") {
+    val (tc, rt) = createDeterministicRuntime
+
+    val testTimedBounded = getEventLogWithStreamCounter.flatMap { case (log, ref) =>
+      EventStateCache[IO].timedBounded[String, Event, Int](log, maxStates = 3, ttl = 2.seconds).flatMap { cache =>
+        val keys = (1 to 4).toList.map(i => s"$baseKey$i")
+        val events = (1 to 4).toList.zip(keys).map { case (a, b) => Event(b, a) }
+        val addEvents = events.traverse(log.add)
+
+        val getCount = ref.get
+
+        def use(k: String) = cache.use(k)(_ => IO.unit)
+
+        for {
+          _ <- addEvents
+          _ <- getCount.assertEquals(0, "Initial stream count should be 0")
+          _ <- use(keys(0))
+          _ <- use(keys(1))
+          _ <- use(keys(2))
+          _ <- getCount.assertEquals(3, "All new states should be streamed")
+          _ <- use(keys(3))
+          _ <- use(keys(0))
+          _ <- getCount.assertEquals(5, "Streaming past max limit kicks least-recently-used out of cache")
+          _ <- use(keys(3))
+          _ <- use(keys(0))
+          _ <- getCount.assertEquals(5, "Asking for keys in cache does not stream")
+          _ <- IO.sleep(3.seconds)
+          _ <- use(keys(3))
+          _ <- use(keys(0))
+          _ <- use(keys(2))
+          _ <- use(keys(1))
+          _ <- getCount.assertEquals(9, "Waiting for keys to expire reloads state from event log")
+        } yield ()
+      }
+    }
+
+    val fut = testTimedBounded.unsafeToFuture()(rt)
+
+    tc.tick(3.seconds)
+
+    fut
   }
 }
