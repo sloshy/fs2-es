@@ -10,6 +10,15 @@ import cats.syntax.all._
   * @param E The type of events.
   * @param A The type of state the events are applied to.
   */
+@annotation.implicitNotFound("""Could not find an implicit DrivenNonEmpty[${E}, ${A}] instance
+for events of type ${E} applying to state of type ${A}.
+
+DrivenNonEmpty is a type class for applying events of some type to a state type. To create one,
+look at 'dev.rpeters.fs2.es.DrivenNonEmpty.instance' and supply a function for handling events.
+
+If you need to consider the possibility of optional state values, consider using methods
+that require DrivenNonEmpty instead.
+""")
 trait DrivenNonEmpty[E, A] {
 
   /** Apply an event to a known value of state.

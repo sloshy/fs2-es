@@ -8,6 +8,13 @@ package dev.rpeters.fs2.es
   * @param K The type of key.
   * @param A The value that contains said key.
   */
+@annotation.implicitNotFound(
+  """Could not find an implicit Keyed[${K}, ${A}] instance for keys of type ${K} and values of type ${A}.
+
+Keyed is a type class for extracting a "key" from some value, usually events. To create one,
+look at 'dev.rpeters.fs2.es.Keyed.instance' and supply a function for extracting a key.
+"""
+)
 trait Keyed[K, -A] {
 
   /** Extract a key from a given value.

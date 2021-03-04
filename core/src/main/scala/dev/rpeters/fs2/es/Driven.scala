@@ -9,6 +9,15 @@ import syntax._
   * @param E The type of the events.
   * @param A The type of state the events are applied to.
   */
+@annotation.implicitNotFound("""Could not find an implicit Driven[${E}, ${A}] instance
+for events of type ${E} applying to state of type ${A}.
+
+Driven is a type class for applying events of some type to a state type. To create one,
+look at 'dev.rpeters.fs2.es.Driven.instance' and supply a function for handling events.
+
+If it does not make sense to have optional states for your state type, consider using methods
+that require DrivenNonEmpty instead.
+""")
 trait Driven[E, A] {
 
   /** Apply an event to a state that may or may not exist.
