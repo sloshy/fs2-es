@@ -8,7 +8,7 @@ val munitV = "0.7.21"
 val munitCatsEffectV = "0.13.0"
 val scalacheckEffectV = "0.7.0"
 
-val scala213 = "2.13.4"
+val scala213 = "2.13.6"
 val scala212 = "2.12.13"
 
 val commonSettings = Seq(
