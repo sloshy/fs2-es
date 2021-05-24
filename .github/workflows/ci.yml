@@ -9,9 +9,9 @@ name: Continuous Integration
 
 on:
   pull_request:
-    branches: ['*']
+    branches: ['**']
   push:
-    branches: ['*']
+    branches: ['**']
     tags: [v*]
 
 env:
@@ -50,10 +50,10 @@ jobs:
           key: ${{ runner.os }}-sbt-cache-v2-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}
 
       - name: Check that workflows are up to date
-        run: sbt ++${{ matrix.scala }} githubWorkflowCheck
+        run: sbt --client '++${{ matrix.scala }}; githubWorkflowCheck'
 
       - name: Build project
-        run: sbt ++${{ matrix.scala }} test
+        run: sbt --client '++${{ matrix.scala }}; test'
 
       - name: Compress target directories
         run: tar cf targets.tar testing/.jvm/target target core/.js/target testing/.js/target microsite/target core/.jvm/target project/target
@@ -118,9 +118,9 @@ jobs:
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-        run: sbt ++${{ matrix.scala }} ci-release
+        run: sbt --client '++${{ matrix.scala }}; ci-release'
 
       - if: matrix.scala == 2.12.13
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: sbt ++${{ matrix.scala }} microsite/makeMicrosite
+        run: sbt --client '++${{ matrix.scala }}; microsite/makeMicrosite'
