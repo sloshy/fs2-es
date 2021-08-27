@@ -10,11 +10,10 @@ import fs2.{Pipe, Stream}
 import fs2.concurrent.Topic
 import syntax._
 
-/** A wrapper around an `EventStateTopic` for debugging purposes.
-  * Stores events added using an internal event log that you can seek forward and back in.
-  * If you call `doNext` or pass an event through `hookup` while you are seeking away from the latest event,
-  * all later events will be dropped. Do keep this in mind.
-  * Additionally, if you `seekTo` any known state and `subscribe`, the new state will be emitted on each seek.
+/** A wrapper around an `EventStateTopic` for debugging purposes. Stores events added using an internal event log that
+  * you can seek forward and back in. If you call `doNext` or pass an event through `hookup` while you are seeking away
+  * from the latest event, all later events will be dropped. Do keep this in mind. Additionally, if you `seekTo` any
+  * known state and `subscribe`, the new state will be emitted on each seek.
   */
 trait ReplayableEventState[F[_], E, A] extends EventStateTopic[F, E, A] {
 
@@ -27,8 +26,8 @@ trait ReplayableEventState[F[_], E, A] extends EventStateTopic[F, E, A] {
   /** Gets the current index in the event log. */
   def getIndex: F[Int]
 
-  /** Resets the state of this EventState to the beginning.
-    * Returns the initial value and clears the internal event list.
+  /** Resets the state of this EventState to the beginning. Returns the initial value and clears the internal event
+    * list.
     */
   def reset: F[A]
 
@@ -38,21 +37,19 @@ trait ReplayableEventState[F[_], E, A] extends EventStateTopic[F, E, A] {
   /** Seeks non-destructively to the initial state and keeps all events. */
   def seekToBeginning: F[A] = seekTo(0)
 
-  /** Seeks backwards by up to `n` states, if possible.
-    * Passing in a negative number will be the same as seeking forward.
+  /** Seeks backwards by up to `n` states, if possible. Passing in a negative number will be the same as seeking
+    * forward.
     */
   def seekBackBy(n: Int)(implicit F: FlatMap[F]) = getIndex.flatMap(i => seekTo(i - n))
 
-  /** Seeks forwards by up to `n` states, if possible.
-    * Passing in a negative number will be the same as seeking backward.
+  /** Seeks forwards by up to `n` states, if possible. Passing in a negative number will be the same as seeking
+    * backward.
     */
   def seekForwardBy(n: Int)(implicit F: FlatMap[F]) = seekBackBy(n * -1)
 
-  /** Resets to the Nth state achieved.
-    * It does this by replaying `n` events at a time and emitting the final result.
+  /** Resets to the Nth state achieved. It does this by replaying `n` events at a time and emitting the final result.
     *
-    * For values `n <= 0`, returns the initial state.
-    * For values higher than the current event count,
+    * For values `n <= 0`, returns the initial state. For values higher than the current event count,
     */
   def seekTo(n: Int): F[A]
 
@@ -181,7 +178,9 @@ object ReplayableEventState {
         topic <- Topic.in[F, G, Option[A]](a.some)
       } yield finalState(initial, internal, state, topic, f)
 
-    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted, powered by a user-defined function. */
+    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted, powered by a
+      * user-defined function.
+      */
     def manualTotal[E, A](a: A)(f: (E, A) => A): F[ReplayableEventState[G, E, A]] =
       for {
         initial <- Ref.in[F, G, A](a)
