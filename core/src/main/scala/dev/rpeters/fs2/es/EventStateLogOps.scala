@@ -8,8 +8,8 @@ trait EventStateLogOps[F[_], S[_, _], E, A] {
   /** Attaches an `EventLog` so that when you `.doNext` on an event, it also gets passed to the underlying log. */
   def attachLog(s: S[E, A])(log: EventLog[F, E, _]): S[E, A]
 
-  /** Attaches an `EventLog`, same as `attachLog`, but it also applies the event log to the current state first before returning it.
-    * Result is a singleton stream containing your new state.
+  /** Attaches an `EventLog`, same as `attachLog`, but it also applies the event log to the current state first before
+    * returning it. Result is a singleton stream containing your new state.
     */
   def attachLogAndApply(s: S[E, A])(log: EventLog[F, E, E]): Stream[F, S[E, A]]
 
