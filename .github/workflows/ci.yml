@@ -120,7 +120,7 @@ jobs:
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
         run: sbt ++${{ matrix.scala }} ci-release
 
-      - if: matrix.scala == 2.12.13
+      - if: matrix.scala == 2.12.15
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: sbt ++${{ matrix.scala }} microsite/makeMicrosite
