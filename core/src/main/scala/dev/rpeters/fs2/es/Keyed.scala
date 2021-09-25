@@ -1,19 +1,23 @@
 package dev.rpeters.fs2.es
 
-/** A type class defining the ability to extract a "key" from some value, where a "key" is some data you can derive from it.
-  * A weaker version of `Initial` that only specifies the ability to extract a key, with no initialization.
+/** A type class defining the ability to extract a "key" from some value, where a "key" is some data you can derive from
+  * it. A weaker version of `Initial` that only specifies the ability to extract a key, with no initialization.
   *
   * To be lawful, you only have to assert that `getKey(a) == getKey(a)` for all `a`.
   *
-  * @param K The type of key.
-  * @param A The value that contains said key.
+  * @param K
+  *   The type of key.
+  * @param A
+  *   The value that contains said key.
   */
 trait Keyed[K, -A] {
 
   /** Extract a key from a given value.
     *
-    * @param a The value that contains a key.
-    * @return A key that you extracted.
+    * @param a
+    *   The value that contains a key.
+    * @return
+    *   A key that you extracted.
     */
   def getKey(a: A): K
 }
@@ -23,8 +27,10 @@ object Keyed {
 
   /** Define how to extract a key from some value.
     *
-    * @param f A function to extract the type of key from your value.
-    * @return A `Keyed` instance for your value for extracting keys.
+    * @param f
+    *   A function to extract the type of key from your value.
+    * @return
+    *   A `Keyed` instance for your value for extracting keys.
     */
   def instance[K, A](f: A => K) = new Keyed[K, A] {
     def getKey(a: A): K = f(a)
