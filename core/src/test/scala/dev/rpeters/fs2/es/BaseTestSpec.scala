@@ -1,7 +1,7 @@
 package dev.rpeters.fs2.es
 
 import cats.effect.kernel.testkit.TestContext
-import cats.effect.unsafe.{IORuntime, Scheduler}
+import cats.effect.unsafe.{IORuntime, IORuntimeConfig, Scheduler}
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 
 import scala.concurrent.ExecutionContext
@@ -26,7 +26,7 @@ abstract class BaseTestSpec extends CatsEffectSuite with ScalaCheckEffectSuite {
       def monotonicNanos() = ctx.now().toNanos
     }
 
-    val runtime = IORuntime(ctx, ctx, scheduler, () => ())
+    val runtime = IORuntime(ctx, ctx, scheduler, () => (), IORuntimeConfig())
 
     (ctx, runtime)
   }

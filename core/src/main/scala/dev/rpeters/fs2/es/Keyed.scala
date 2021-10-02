@@ -1,5 +1,7 @@
 package dev.rpeters.fs2.es
 
+import cats.Contravariant
+
 /** A type class defining the ability to extract a "key" from some value, where a "key" is some data you can derive from it.
   * A weaker version of `Initial` that only specifies the ability to extract a key, with no initialization.
   *
@@ -35,5 +37,11 @@ object Keyed {
     */
   def instance[K, A](f: A => K) = new Keyed[K, A] {
     def getKey(a: A): K = f(a)
+  }
+
+  implicit def keyedContravariant[K]: Contravariant[Keyed[K, *]] = new Contravariant[Keyed[K, *]] {
+    def contramap[A, B](fa: Keyed[K, A])(f: B => A): Keyed[K, B] = new Keyed[K, B] {
+      def getKey(a: B): K = fa.getKey(f(a))
+    }
   }
 }

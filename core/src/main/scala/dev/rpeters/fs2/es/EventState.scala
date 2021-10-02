@@ -1,6 +1,7 @@
 package dev.rpeters.fs2.es
 
 import cats.{Applicative, Functor}
+import cats.arrow.Profunctor
 import cats.effect.kernel.{Concurrent, Ref}
 import cats.syntax.all._
 import fs2.{Pipe, Stream}
@@ -87,8 +88,8 @@ object EventState {
         state <- Ref[F].of(a.some)
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
-    /** Gives you an `EventState` that is initialized to a starting value and cannot be deleted.
-      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
+    /** Gives you an `EventState` that is initialized to a starting value and cannot be removed.
+      * In the event that an event would otherwise "remove" your state, it keeps the current state value.
       */
     def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[F, E, A]] =
       for {
@@ -113,8 +114,8 @@ object EventState {
         state <- Ref[F].of(a.some)
       } yield finalState(state, f)
 
-    /** Gives you an `EventState` powered by a user-defined function with a starting value that cannot be deleted.
-      * The supplied function ensures that you can never delete your state and it must always have a valid value.
+    /** Gives you an `EventState` powered by a user-defined function with a starting value that cannot be removed.
+      * The supplied function ensures that you can never remove your state and it must always have a valid value.
       */
     def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventState[F, E, A]] =
       for {
@@ -135,7 +136,7 @@ object EventState {
 
   implicit def attachLogEventState[F[_]: Applicative, E, A]: EventStateLogOps[F, EventState[F, *, *], E, A] =
     new EventStateLogOps[F, EventState[F, *, *], E, A] {
-      def attachLog(s: EventState[F, E, A])(log: EventLog[F, E, _]): EventState[F, E, A] = new EventState[F, E, A] {
+      def attachLog(s: EventState[F, E, A])(log: EventLogSink[F, E]): EventState[F, E, A] = new EventState[F, E, A] {
         def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
         def get: F[A] = s.get
       }
@@ -150,9 +151,19 @@ object EventState {
         def get: F[AA] = s.get.map(f)
       }
 
-      def attachLogAndApply(s: EventState[F, E, A])(log: EventLog[F, E, E]): Stream[F, EventState[F, E, A]] =
-        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+      def attachLogAndApply(s: EventState[F, E, A])(log: FiniteEventLog[F, E, E]): Stream[F, EventState[F, E, A]] =
+        log.streamOnce.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
 
+    }
+
+  implicit def eventStateProfunctor[F[_]: Functor]: Profunctor[EventState[F, *, *]] =
+    new Profunctor[EventState[F, *, *]] {
+
+      def dimap[A, B, C, D](fab: EventState[F, A, B])(f: C => A)(g: B => D): EventState[F, C, D] =
+        new EventState[F, C, D] {
+          def doNext(e: C): F[D] = fab.doNext(f(e)).map(g)
+          def get: F[D] = fab.get.map(g)
+        }
     }
 }
 
@@ -176,8 +187,8 @@ object EventStateTopic {
         topic <- Topic[F, Option[A]].flatTap(_.publish1(a.some))
       } yield finalState(state, topic, (event, state) => state.handleEvent(event))
 
-    /** Gives you an `EventStateTopic` that is initialized to a starting value and cannot be deleted.
-      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
+    /** Gives you an `EventStateTopic` that is initialized to a starting value and cannot be removed.
+      * In the event that an event would otherwise "remove" your state, it keeps the current state value.
       */
     def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventStateTopic[F, E, A]] =
       for {
@@ -206,8 +217,8 @@ object EventStateTopic {
         topic <- Topic[F, Option[A]].flatTap(_.publish1(a.some))
       } yield finalState(state, topic, f)
 
-    /** Gives you an `EventStateTopic` powered by a user-defined function with a starting value that cannot be deleted.
-      * The supplied function ensures that you can never delete your state and it must always have a valid value.
+    /** Gives you an `EventStateTopic` powered by a user-defined function with a starting value that cannot be removed.
+      * The supplied function ensures that you can never remove your state and it must always have a valid value.
       */
     def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventStateTopic[F, E, A]] =
       for {
@@ -220,7 +231,7 @@ object EventStateTopic {
 
   implicit def attachLogEventStateTopic[F[_]: Applicative, E, A]: EventStateLogOps[F, EventStateTopic[F, *, *], E, A] =
     new EventStateLogOps[F, EventStateTopic[F, *, *], E, A] {
-      def attachLog(s: EventStateTopic[F, E, A])(log: EventLog[F, E, _]): EventStateTopic[F, E, A] =
+      def attachLog(s: EventStateTopic[F, E, A])(log: EventLogSink[F, E]): EventStateTopic[F, E, A] =
         new EventStateTopic[F, E, A] {
           def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
           def get: F[A] = s.get
@@ -245,10 +256,22 @@ object EventStateTopic {
         }
 
       def attachLogAndApply(s: EventStateTopic[F, E, A])(
-          log: EventLog[F, E, E]
+          log: FiniteEventLog[F, E, E]
       ): Stream[F, EventStateTopic[F, E, A]] =
-        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+        log.streamOnce.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
 
+    }
+
+  implicit def eventStateTopicProfunctor[F[_]: Functor]: Profunctor[EventStateTopic[F, *, *]] =
+    new Profunctor[EventStateTopic[F, *, *]] {
+
+      def dimap[A, B, C, D](fab: EventStateTopic[F, A, B])(f: C => A)(g: B => D): EventStateTopic[F, C, D] =
+        new EventStateTopic[F, C, D] {
+          def doNext(e: C): F[D] = fab.doNext(f(e)).map(g)
+          def get: F[D] = fab.get.map(g)
+          def subscribe: Stream[F, D] = fab.subscribe.map(g)
+          def hookupAndSubscribe: Pipe[F, C, D] = s => s.map(f).through(fab.hookupAndSubscribe).map(g)
+        }
     }
 }
 
@@ -274,8 +297,8 @@ object SignallingEventState {
         state <- SignallingRef[F, Option[A]](a.some)
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
-    /** Gives you a `SignallingEventState` that is initialized to a starting value and cannot be deleted.
-      * In the event that an event would otherwise "delete" your state, it keeps the current state value.
+    /** Gives you a `SignallingEventState` that is initialized to a starting value and cannot be removed.
+      * In the event that an event would otherwise "remove" your state, it keeps the current state value.
       */
     def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[SignallingEventState[F, E, A]] =
       for {
@@ -300,8 +323,8 @@ object SignallingEventState {
         state <- SignallingRef[F, Option[A]](a.some)
       } yield finalState(state, f)
 
-    /** Gives you a `SignallingEventState` powered by a user-defined function with a starting value that cannot be deleted.
-      * The supplied function ensures that you can never delete your state and it must always have a valid value.
+    /** Gives you a `SignallingEventState` powered by a user-defined function with a starting value that cannot be removed.
+      * The supplied function ensures that you can never remove your state and it must always have a valid value.
       */
     def manualTotal[E, A](a: A)(f: (E, A) => A): F[SignallingEventState[F, E, A]] =
       for {
@@ -314,7 +337,7 @@ object SignallingEventState {
   implicit def attachLogSignallingEventState[F[_]: Applicative, E, A]
       : EventStateLogOps[F, SignallingEventState[F, *, *], E, A] =
     new EventStateLogOps[F, SignallingEventState[F, *, *], E, A] {
-      def attachLog(s: SignallingEventState[F, E, A])(log: EventLog[F, E, _]): SignallingEventState[F, E, A] =
+      def attachLog(s: SignallingEventState[F, E, A])(log: EventLogSink[F, E]): SignallingEventState[F, E, A] =
         new SignallingEventState[F, E, A] {
           def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
           def get: F[A] = s.get
@@ -339,9 +362,21 @@ object SignallingEventState {
         }
 
       def attachLogAndApply(s: SignallingEventState[F, E, A])(
-          log: EventLog[F, E, E]
+          log: FiniteEventLog[F, E, E]
       ): Stream[F, SignallingEventState[F, E, A]] =
-        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+        log.streamOnce.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
 
+    }
+
+  implicit def signallingEventStateProfunctor[F[_]: Functor]: Profunctor[SignallingEventState[F, *, *]] =
+    new Profunctor[SignallingEventState[F, *, *]] {
+
+      def dimap[A, B, C, D](fab: SignallingEventState[F, A, B])(f: C => A)(g: B => D): SignallingEventState[F, C, D] =
+        new SignallingEventState[F, C, D] {
+          def doNext(e: C): F[D] = fab.doNext(f(e)).map(g)
+          def get: F[D] = fab.get.map(g)
+          def discrete: Stream[F, D] = fab.discrete.map(g)
+          def continuous: Stream[F, D] = fab.continuous.map(g)
+        }
     }
 }

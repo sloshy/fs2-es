@@ -5,9 +5,9 @@ sealed trait EmptyState extends Product with Serializable
 
 object EmptyState {
 
-  /** Signifies that a state has just transitioned to being deleted. */
-  case object Deleted extends EmptyState
+  /** Signifies that a state has just transitioned to being removed. */
+  case object Removed extends EmptyState
 
-  /** Signifies that a state was either previously deleted or otherwise never initialized. */
+  /** Signifies that a state was either previously removed or otherwise never initialized. */
   case object NotFound extends EmptyState
 }

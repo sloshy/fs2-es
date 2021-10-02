@@ -23,7 +23,7 @@ trait Driven[E, A] {
   /** Apply an event to a state that may or may not exist.
     *
     * If a state does not exist and it is created, that indicates it is said to have been initialized by some starting event.
-    * If a state does exist but `None` is returned after applying this function, that state is said to be deleted.
+    * If a state does exist but `None` is returned after applying this function, that state is said to be removed.
     *
     * @param optA A possibly-existing state.
     * @param e An event to apply to your state.
