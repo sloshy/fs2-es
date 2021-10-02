@@ -139,7 +139,7 @@ object ReplayableEventState {
         (event, state) => state.handleEvent(event)
       )
 
-    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted. */
+    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be removed. */
     def total[E, A](a: A)(implicit driven: DrivenNonEmpty[E, A]): F[ReplayableEventState[F, E, A]] =
       for {
         initial <- Ref[F].of(a)
@@ -181,7 +181,7 @@ object ReplayableEventState {
         topic <- Topic[F, Option[A]].flatTap(_.publish1(a.some))
       } yield finalState(initial, internal, state, topic, f)
 
-    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be deleted, powered by a user-defined function. */
+    /** Creates a `ReplayableEventState` that is initialized to a starting value and cannot be removed, powered by a user-defined function. */
     def manualTotal[E, A](a: A)(f: (E, A) => A): F[ReplayableEventState[F, E, A]] =
       for {
         initial <- Ref[F].of(a)
