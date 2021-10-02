@@ -42,4 +42,4 @@ It also has operators for checking whether a value is completed or not via the `
 Please see the API docs for more information.
 
 **BE ADVISED:** This is a rather low-level concurrency tool and you will want to thoroughly test your usage of this in order to not leak anything.
-Always be sure to delete values that have completed after some period of time, or make sure they expire with [`ExpiringRef`](expiringref/).
+Always be sure to remove values that have completed after some period of time, or make sure they expire with [`ExpiringRef`](expiringref/).

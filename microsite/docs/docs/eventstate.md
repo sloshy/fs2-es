@@ -57,7 +57,7 @@ There are several others that you should get to know with different properties, 
 
 Using the above constructors you can create different `EventState` instances that are useful in different situations.
 For example, `empty` is useful in cases where state can be "initialized" by an incoming event, i.e. `UserCreatedEvent` in a system that models users.
-`initial` and `total` imply you supply your own starting state, and differ in whether or not you allow state to be "deleted" by being set to `None` by events.
+`initial` and `total` imply you supply your own starting state, and differ in whether or not you allow state to be "removed" by being set to `None` by events.
 For quick demos, scripts, or ad-hoc usage with different configurations, the `manual` variants of the above can also be useful.
 
 ## SignallingEventState and EventStateTopic

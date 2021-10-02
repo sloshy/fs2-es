@@ -25,7 +25,7 @@ trait DrivenNonEmpty[E, A] {
 }
 ```
 
-`DrivenNonEmpty` is for cases where you can never have an uninitialized or deleted state.
+`DrivenNonEmpty` is for cases where you can never have an uninitialized or removed state.
 For example, say we are folding on a `List[Int]` to find the sum of all the ints in the list.
 You could implement that as `DrivenNonEmpty` like so:
 
@@ -49,8 +49,8 @@ val drivenNonEmptyArb = DrivenNonEmpty.instance[Int, Int] {
 
 The `handleEvent` function applies an event to your state, but you may have noticed that it returns an `Option[A]` result value.
 This allows us to say that applying an event may not always result in a final value.
-For example, in cases where state is "deleted" by an event.
-If you know for certain that your state can never be conceptually "deleted", opt to use `handleEventOrDefault` instead which ensures that unhandled cases do not delete state.
+For example, in cases where state is "removed" by an event.
+If you know for certain that your state can never be conceptually "removed", opt to use `handleEventOrDefault` instead which ensures that unhandled cases do not remove state.
 
 `Driven` is more comprehensive, but not applicable to all cases.
 `Driven#handleEvent` takes in an optional state, which in this case means that we might not have an initial state to apply events to.
