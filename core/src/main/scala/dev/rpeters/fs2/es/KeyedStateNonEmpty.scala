@@ -15,6 +15,19 @@ import cats.data.State
   * @param A
   *   The type of state the events are applied to.
   */
+@annotation.implicitNotFound("""Could not find an implicit KeyedStateNonEmpty[${K}, ${E}, ${A}] instance
+for keys of type ${K}, events of type ${E}, and state of type ${A}.
+
+KeyedStateNonEmpty is a type class for state values that are driven by events that contain keys.
+This is used for some functionality that depends on the ability to filter events by some property.
+
+To create one, make sure you have an implicit DrivenNonEmpty[${E}, ${A}] and Keyed[${K}, ${E}] in-scope,
+and then define one as follows, preferably in a companion object to your state like so:
+
+object ${A} {
+  implicit val keyedState: KeyedStateNonEmpty[${K}, ${E}, ${A}] = KeyedStateNonEmpty.instance
+}
+""")
 trait KeyedStateNonEmpty[K, E, A] extends DrivenNonEmpty[E, A] with Keyed[K, E]
 
 object KeyedStateNonEmpty {

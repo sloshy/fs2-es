@@ -84,6 +84,8 @@ val example = EventLog.inMemory[IO, UserEvent].flatMap { log =>
 }
 ```
 ```scala mdoc
+import cats.effect.unsafe.implicits.global
+
 example.unsafeRunSync()
 ```
 
@@ -102,7 +104,6 @@ If your event log only represents a single state, you might be best off with `Dr
 Otherwise, if you have multiple states you want to load from your event log, use `KeyedState` or `KeyedStateNonEmpty`.
 
 Our example has events and state with a "key" (the user's name), so we can use `KeyedState`, which also gives us access to all of the above methods due to it being at the top of our type class hierarchy.
-
 
 ```scala mdoc:silent
 import dev.rpeters.fs2.es.{Driven, Keyed, KeyedState}

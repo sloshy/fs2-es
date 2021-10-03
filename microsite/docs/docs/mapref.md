@@ -22,6 +22,8 @@ val example = MapRef[IO].empty[String, String].flatMap { map =>
 }
 ```
 ```scala mdoc
+import cats.effect.unsafe.implicits.global
+
 example.unsafeRunSync()
 ```
 

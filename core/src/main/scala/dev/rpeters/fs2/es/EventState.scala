@@ -1,12 +1,11 @@
 package dev.rpeters.fs2.es
 
 import cats.{Applicative, Functor}
-import cats.effect.{Concurrent, Sync}
-import cats.effect.concurrent.Ref
+import cats.arrow.Profunctor
+import cats.effect.kernel.{Concurrent, Ref}
 import cats.syntax.all._
 import fs2.{Pipe, Stream}
-import fs2.concurrent.SignallingRef
-import fs2.concurrent.Topic
+import fs2.concurrent.{SignallingRef, Topic}
 import syntax._
 
 /** An atomic reference that can only be modified through a linear application of events. When you create one, all
@@ -31,10 +30,10 @@ trait EventState[F[_], E, A] {
     */
   def hookupWithInput(implicit F: Functor[F]): Pipe[F, E, (E, A)] = _.evalMap(e => doNext(e).tupleLeft(e))
 
-  /** Feeds a stream of events into this `EventState` and returns the final state. If you don't have a `Sync`
-    * constraint, you are probably better off using `doNextStream` or `doNext` directly.
+  /** Feeds a stream of events into this `EventState` and returns the final state.
+    * If you don't have a `Concurrent` constraint, you are probably better off using `doNextStream` or `doNext` directly.
     */
-  def doNext(eventStream: Stream[F, E])(implicit F: Sync[F]): F[A] =
+  def doNext(eventStream: Stream[F, E])(implicit F: Concurrent[F]): F[A] =
     eventStream.through(hookup).compile.drain >> get
 
   /** Feeds a stream of events into this `EventState` and returns the final state as a singleton stream. */
@@ -71,80 +70,72 @@ trait SignallingEventState[F[_], E, A] extends EventState[F, E, A] {
 
 object EventState {
 
-  final class EventStatePartiallyApplied[F[_]: Sync, G[_]: Sync]() {
-    private def doNextInternal[E, A](e: E, ef: (E, A) => A, state: Ref[G, A]) =
+  final class EventStatePartiallyApplied[F[_]: Concurrent]() {
+    private def doNextInternal[E, A](e: E, ef: (E, A) => A, state: Ref[F, A]) =
       state.modify { internalA =>
         val next = ef(e, internalA)
         next -> next
       }
-    private def finalState[E, A](state: Ref[G, A], ef: (E, A) => A) =
-      new EventState[G, E, A] {
-        def doNext(e: E): G[A] = doNextInternal(e, ef, state)
-        def get: G[A] = state.get
+    private def finalState[E, A](state: Ref[F, A], ef: (E, A) => A) =
+      new EventState[F, E, A] {
+        def doNext(e: E): F[A] = doNextInternal(e, ef, state)
+        def get: F[A] = state.get
       }
 
     /** Gives you an `EventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventState[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](a.some)
+        state <- Ref[F].of(a.some)
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
-    /** Gives you an `EventState` that is initialized to a starting value and cannot be deleted. In the event that an
-      * event would otherwise "delete" your state, it keeps the current state value.
+    /** Gives you an `EventState` that is initialized to a starting value and cannot be removed.
+      * In the event that an event would otherwise "remove" your state, it keeps the current state value.
       */
-    def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[G, E, A]] =
+    def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventState[F, E, A]] =
       for {
-        state <- Ref.in[F, G, A](a)
+        state <- Ref[F].of(a)
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you an `EventState` that is not yet initialized. */
-    def empty[E, A](implicit ev: Driven[E, A]): F[EventState[G, E, Option[A]]] =
+    def empty[E, A](implicit ev: Driven[E, A]): F[EventState[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](none)
+        state <- Ref[F].of(none[A])
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you an empty `EventState` powered by a user-defined function. */
-    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[EventState[G, E, Option[A]]] =
+    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[EventState[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](none)
+        state <- Ref[F].of(none[A])
       } yield finalState(state, f)
 
     /** Gives you an `EventState` powered by a user-defined function with a starting value. */
-    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[EventState[G, E, Option[A]]] =
+    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[EventState[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](a.some)
+        state <- Ref[F].of(a.some)
       } yield finalState(state, f)
 
-    /** Gives you an `EventState` powered by a user-defined function with a starting value that cannot be deleted. The
-      * supplied function ensures that you can never delete your state and it must always have a valid value.
+    /** Gives you an `EventState` powered by a user-defined function with a starting value that cannot be removed.
+      * The supplied function ensures that you can never remove your state and it must always have a valid value.
       */
-    def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventState[G, E, A]] =
+    def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventState[F, E, A]] =
       for {
-        state <- Ref.in[F, G, A](a)
+        state <- Ref[F].of(a)
       } yield finalState(state, f)
   }
 
   /** Selects the set of constructors for a base `EventState`. Also see `topic` and `signalling`.
     */
-  def apply[F[_]: Sync] = new EventStatePartiallyApplied[F, F]()
-
-  def in[F[_]: Sync, G[_]: Sync] = new EventStatePartiallyApplied[F, G]()
+  def apply[F[_]: Concurrent] = new EventStatePartiallyApplied[F]()
 
   /** Selects the set of constructors for an `EventStateTopic`, a variant of `EventState` that is subscribable. */
-  def topic[F[_]: Concurrent] = new EventStateTopic.EventStateTopicPartiallyApplied[F, F]()
+  def topic[F[_]: Concurrent] = new EventStateTopic.EventStateTopicPartiallyApplied[F]()
 
-  def topicIn[F[_]: Sync, G[_]: Concurrent] = new EventStateTopic.EventStateTopicPartiallyApplied[F, G]()
-
-  /** Selects the set of constructors for a `SignallingEventState`, a variant of `EventState` that is continuously
-    * monitorable.
-    */
-  def signalling[F[_]: Concurrent] = new SignallingEventState.SignallingEventStatePartiallyApplied[F, F]()
-
-  def signallingIn[F[_]: Sync, G[_]: Concurrent] = new SignallingEventState.SignallingEventStatePartiallyApplied[F, G]()
+  /** Selects the set of constructors for a `SignallingEventState`, a variant of `EventState` that is continuously monitorable. */
+  def signalling[F[_]: Concurrent] = new SignallingEventState.SignallingEventStatePartiallyApplied[F]()
 
   implicit def attachLogEventState[F[_]: Applicative, E, A]: EventStateLogOps[F, EventState[F, *, *], E, A] =
     new EventStateLogOps[F, EventState[F, *, *], E, A] {
-      def attachLog(s: EventState[F, E, A])(log: EventLog[F, E, _]): EventState[F, E, A] = new EventState[F, E, A] {
+      def attachLog(s: EventState[F, E, A])(log: EventLogSink[F, E]): EventState[F, E, A] = new EventState[F, E, A] {
         def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
         def get: F[A] = s.get
       }
@@ -159,79 +150,87 @@ object EventState {
         def get: F[AA] = s.get.map(f)
       }
 
-      def attachLogAndApply(s: EventState[F, E, A])(log: EventLog[F, E, E]): Stream[F, EventState[F, E, A]] =
-        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+      def attachLogAndApply(s: EventState[F, E, A])(log: FiniteEventLog[F, E, E]): Stream[F, EventState[F, E, A]] =
+        log.streamOnce.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
 
+    }
+
+  implicit def eventStateProfunctor[F[_]: Functor]: Profunctor[EventState[F, *, *]] =
+    new Profunctor[EventState[F, *, *]] {
+
+      def dimap[A, B, C, D](fab: EventState[F, A, B])(f: C => A)(g: B => D): EventState[F, C, D] =
+        new EventState[F, C, D] {
+          def doNext(e: C): F[D] = fab.doNext(f(e)).map(g)
+          def get: F[D] = fab.get.map(g)
+        }
     }
 }
 
 object EventStateTopic {
 
-  final class EventStateTopicPartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
-    private def doNextInternal[E, A](e: E, state: Ref[G, A], ef: (E, A) => A) =
+  final class EventStateTopicPartiallyApplied[F[_]: Concurrent]() {
+    private def doNextInternal[E, A](e: E, state: Ref[F, A], ef: (E, A) => A) =
       state.updateAndGet(ef(e, _))
-    private def finalState[E, A](state: Ref[G, A], topic: Topic[G, A], ef: (E, A) => A) =
-      new EventStateTopic[G, E, A] {
-        def doNext(e: E): G[A] = doNextInternal(e, state, ef).flatMap(a => topic.publish1(a).as(a))
-        def get: G[A] = state.get
-        def subscribe: Stream[G, A] = topic.subscribe(1)
-        def hookupAndSubscribe: Pipe[G, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
+    private def finalState[E, A](state: Ref[F, A], topic: Topic[F, A], ef: (E, A) => A) =
+      new EventStateTopic[F, E, A] {
+        def doNext(e: E): F[A] = doNextInternal(e, state, ef).flatMap(a => topic.publish1(a).as(a))
+        def get: F[A] = state.get
+        def subscribe: Stream[F, A] = topic.subscribe(1)
+        def hookupAndSubscribe: Pipe[F, E, A] = s => topic.subscribe(1).concurrently(s.through(hookup))
       }
 
     /** Gives you an `EventStateTopic` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventStateTopic[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[EventStateTopic[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](a.some)
-        topic <- Topic.in[F, G, Option[A]](a.some)
+        state <- Ref[F].of(a.some)
+        topic <- Topic[F, Option[A]].flatTap(_.publish1(a.some))
       } yield finalState(state, topic, (event, state) => state.handleEvent(event))
 
-    /** Gives you an `EventStateTopic` that is initialized to a starting value and cannot be deleted. In the event that
-      * an event would otherwise "delete" your state, it keeps the current state value.
+    /** Gives you an `EventStateTopic` that is initialized to a starting value and cannot be removed.
+      * In the event that an event would otherwise "remove" your state, it keeps the current state value.
       */
-    def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventStateTopic[G, E, A]] =
+    def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[EventStateTopic[F, E, A]] =
       for {
-        state <- Ref.in[F, G, A](a)
-        topic <- Topic.in[F, G, A](a)
+        state <- Ref[F].of(a)
+        topic <- Topic[F, A].flatTap(_.publish1(a))
       } yield finalState(state, topic, (event, state) => state.handleEvent(event))
 
     /** Gives you an `EventStateTopic` that is not yet initialized. */
-    def empty[E, A](implicit ev: Driven[E, A]): F[EventStateTopic[G, E, Option[A]]] =
+    def empty[E, A](implicit ev: Driven[E, A]): F[EventStateTopic[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](none)
-        topic <- Topic.in[F, G, Option[A]](none)
+        state <- Ref[F].of(none[A])
+        topic <- Topic[F, Option[A]].flatTap(_.publish1(none[A]))
       } yield finalState(state, topic, (event, state) => state.handleEvent(event))
 
     /** Gives you an empty `EventStateTopic` powered by a user-defined function. */
-    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[EventStateTopic[G, E, Option[A]]] =
+    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[EventStateTopic[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](none)
-        topic <- Topic.in[F, G, Option[A]](none)
+        state <- Ref[F].of(none[A])
+        topic <- Topic[F, Option[A]].flatTap(_.publish1(none))
       } yield finalState(state, topic, f)
 
     /** Gives you an `EventStateTopic` powered by a user-defined function with a starting value. */
-    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[EventStateTopic[G, E, Option[A]]] =
+    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[EventStateTopic[F, E, Option[A]]] =
       for {
-        state <- Ref.in[F, G, Option[A]](a.some)
-        topic <- Topic.in[F, G, Option[A]](a.some)
+        state <- Ref[F].of(a.some)
+        topic <- Topic[F, Option[A]].flatTap(_.publish1(a.some))
       } yield finalState(state, topic, f)
 
-    /** Gives you an `EventStateTopic` powered by a user-defined function with a starting value that cannot be deleted.
-      * The supplied function ensures that you can never delete your state and it must always have a valid value.
+    /** Gives you an `EventStateTopic` powered by a user-defined function with a starting value that cannot be removed.
+      * The supplied function ensures that you can never remove your state and it must always have a valid value.
       */
-    def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventStateTopic[G, E, A]] =
+    def manualTotal[E, A](a: A)(f: (E, A) => A): F[EventStateTopic[F, E, A]] =
       for {
-        state <- Ref.in[F, G, A](a)
-        topic <- Topic.in[F, G, A](a)
+        state <- Ref[F].of(a)
+        topic <- Topic[F, A].flatTap(_.publish1(a))
       } yield finalState(state, topic, f)
   }
 
-  def apply[F[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, F]()
-
-  def in[F[_]: Sync, G[_]: Concurrent] = new EventStateTopicPartiallyApplied[F, G]()
+  def apply[F[_]: Concurrent] = new EventStateTopicPartiallyApplied[F]()
 
   implicit def attachLogEventStateTopic[F[_]: Applicative, E, A]: EventStateLogOps[F, EventStateTopic[F, *, *], E, A] =
     new EventStateLogOps[F, EventStateTopic[F, *, *], E, A] {
-      def attachLog(s: EventStateTopic[F, E, A])(log: EventLog[F, E, _]): EventStateTopic[F, E, A] =
+      def attachLog(s: EventStateTopic[F, E, A])(log: EventLogSink[F, E]): EventStateTopic[F, E, A] =
         new EventStateTopic[F, E, A] {
           def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
           def get: F[A] = s.get
@@ -256,79 +255,88 @@ object EventStateTopic {
         }
 
       def attachLogAndApply(s: EventStateTopic[F, E, A])(
-          log: EventLog[F, E, E]
+          log: FiniteEventLog[F, E, E]
       ): Stream[F, EventStateTopic[F, E, A]] =
-        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+        log.streamOnce.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
 
+    }
+
+  implicit def eventStateTopicProfunctor[F[_]: Functor]: Profunctor[EventStateTopic[F, *, *]] =
+    new Profunctor[EventStateTopic[F, *, *]] {
+
+      def dimap[A, B, C, D](fab: EventStateTopic[F, A, B])(f: C => A)(g: B => D): EventStateTopic[F, C, D] =
+        new EventStateTopic[F, C, D] {
+          def doNext(e: C): F[D] = fab.doNext(f(e)).map(g)
+          def get: F[D] = fab.get.map(g)
+          def subscribe: Stream[F, D] = fab.subscribe.map(g)
+          def hookupAndSubscribe: Pipe[F, C, D] = s => s.map(f).through(fab.hookupAndSubscribe).map(g)
+        }
     }
 }
 
 object SignallingEventState {
 
-  final class SignallingEventStatePartiallyApplied[F[_]: Sync, G[_]: Concurrent]() {
-    private def doNextInternal[E, A](e: E, ef: (E, A) => A, state: SignallingRef[G, A]) =
+  final class SignallingEventStatePartiallyApplied[F[_]: Concurrent]() {
+    private def doNextInternal[E, A](e: E, ef: (E, A) => A, state: SignallingRef[F, A]) =
       state.modify { internalA =>
         val next = ef(e, internalA)
         next -> next
       }
-    private def finalState[E, A](state: SignallingRef[G, A], ef: (E, A) => A) =
-      new SignallingEventState[G, E, A] {
-        def doNext(e: E): G[A] = doNextInternal(e, ef, state)
-        def get: G[A] = state.get
-        def continuous: Stream[G, A] = state.continuous
-        def discrete: Stream[G, A] = state.discrete
+    private def finalState[E, A](state: SignallingRef[F, A], ef: (E, A) => A) =
+      new SignallingEventState[F, E, A] {
+        def doNext(e: E): F[A] = doNextInternal(e, ef, state)
+        def get: F[A] = state.get
+        def continuous: Stream[F, A] = state.continuous
+        def discrete: Stream[F, A] = state.discrete
       }
 
     /** Gives you a `SignallingEventState` that is initialized to a starting value. */
-    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[SignallingEventState[G, E, Option[A]]] =
+    def initial[E, A](a: A)(implicit ev: Driven[E, A]): F[SignallingEventState[F, E, Option[A]]] =
       for {
-        state <- SignallingRef.in[F, G, Option[A]](a.some)
+        state <- SignallingRef[F, Option[A]](a.some)
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
-    /** Gives you a `SignallingEventState` that is initialized to a starting value and cannot be deleted. In the event
-      * that an event would otherwise "delete" your state, it keeps the current state value.
+    /** Gives you a `SignallingEventState` that is initialized to a starting value and cannot be removed.
+      * In the event that an event would otherwise "remove" your state, it keeps the current state value.
       */
-    def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[SignallingEventState[G, E, A]] =
+    def total[E, A](a: A)(implicit ev: DrivenNonEmpty[E, A]): F[SignallingEventState[F, E, A]] =
       for {
-        state <- SignallingRef.in[F, G, A](a)
+        state <- SignallingRef[F, A](a)
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you a `SignallingEventState` that is not yet initialized. */
-    def empty[E, A](implicit ev: Driven[E, A]): F[SignallingEventState[G, E, Option[A]]] =
+    def empty[E, A](implicit ev: Driven[E, A]): F[SignallingEventState[F, E, Option[A]]] =
       for {
-        state <- SignallingRef.in[F, G, Option[A]](none)
+        state <- SignallingRef[F, Option[A]](none)
       } yield finalState(state, (event, state) => state.handleEvent(event))
 
     /** Gives you an empty `SignallingEventState` powered by a user-defined function. */
-    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[SignallingEventState[G, E, Option[A]]] =
+    def manualEmpty[E, A](f: (E, Option[A]) => Option[A]): F[SignallingEventState[F, E, Option[A]]] =
       for {
-        state <- SignallingRef.in[F, G, Option[A]](none)
+        state <- SignallingRef[F, Option[A]](none)
       } yield finalState(state, f)
 
     /** Gives you a `SignallingEventState` powered by a user-defined function with a starting value. */
-    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[SignallingEventState[G, E, Option[A]]] =
+    def manualInitial[E, A](a: A)(f: (E, Option[A]) => Option[A]): F[SignallingEventState[F, E, Option[A]]] =
       for {
-        state <- SignallingRef.in[F, G, Option[A]](a.some)
+        state <- SignallingRef[F, Option[A]](a.some)
       } yield finalState(state, f)
 
-    /** Gives you a `SignallingEventState` powered by a user-defined function with a starting value that cannot be
-      * deleted. The supplied function ensures that you can never delete your state and it must always have a valid
-      * value.
+    /** Gives you a `SignallingEventState` powered by a user-defined function with a starting value that cannot be removed.
+      * The supplied function ensures that you can never remove your state and it must always have a valid value.
       */
-    def manualTotal[E, A](a: A)(f: (E, A) => A): F[SignallingEventState[G, E, A]] =
+    def manualTotal[E, A](a: A)(f: (E, A) => A): F[SignallingEventState[F, E, A]] =
       for {
-        state <- SignallingRef.in[F, G, A](a)
+        state <- SignallingRef[F, A](a)
       } yield finalState(state, f)
   }
 
-  def apply[F[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, F]()
-
-  def in[F[_]: Sync, G[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F, G]()
+  def apply[F[_]: Concurrent] = new SignallingEventStatePartiallyApplied[F]()
 
   implicit def attachLogSignallingEventState[F[_]: Applicative, E, A]
       : EventStateLogOps[F, SignallingEventState[F, *, *], E, A] =
     new EventStateLogOps[F, SignallingEventState[F, *, *], E, A] {
-      def attachLog(s: SignallingEventState[F, E, A])(log: EventLog[F, E, _]): SignallingEventState[F, E, A] =
+      def attachLog(s: SignallingEventState[F, E, A])(log: EventLogSink[F, E]): SignallingEventState[F, E, A] =
         new SignallingEventState[F, E, A] {
           def doNext(e: E): F[A] = log.add(e) *> s.doNext(e)
           def get: F[A] = s.get
@@ -353,9 +361,21 @@ object SignallingEventState {
         }
 
       def attachLogAndApply(s: SignallingEventState[F, E, A])(
-          log: EventLog[F, E, E]
+          log: FiniteEventLog[F, E, E]
       ): Stream[F, SignallingEventState[F, E, A]] =
-        log.stream.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
+        log.streamOnce.through(s.hookup).drain ++ Stream.emit(attachLog(s)(log))
 
+    }
+
+  implicit def signallingEventStateProfunctor[F[_]: Functor]: Profunctor[SignallingEventState[F, *, *]] =
+    new Profunctor[SignallingEventState[F, *, *]] {
+
+      def dimap[A, B, C, D](fab: SignallingEventState[F, A, B])(f: C => A)(g: B => D): SignallingEventState[F, C, D] =
+        new SignallingEventState[F, C, D] {
+          def doNext(e: C): F[D] = fab.doNext(f(e)).map(g)
+          def get: F[D] = fab.get.map(g)
+          def discrete: Stream[F, D] = fab.discrete.map(g)
+          def continuous: Stream[F, D] = fab.continuous.map(g)
+        }
     }
 }

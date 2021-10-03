@@ -1,15 +1,18 @@
 import microsites._
 
 //Deps
-val agitationV = "0.2.0"
-val catsEffectV = "2.3.1"
-val fs2V = "2.5.0"
-val munitV = "0.7.21"
-val munitCatsEffectV = "0.13.0"
-val scalacheckEffectV = "0.7.0"
+val agitationV = "0.3.0-M1"
+val catsEffectV = "3.2.9"
+val fs2V = "3.1.3"
+val munitV = "0.7.29"
+val munitCatsEffectV = "1.0.5"
+val scalacheckEffectV = "1.0.2"
+val kindProjectorV = "0.13.2"
+val skunkV = "0.2.2"
 
-val scala213 = "2.13.4"
-val scala212 = "2.12.13"
+val scala3 = "3.0.2"
+val scala213 = "2.13.6"
+val scala212 = "2.12.15"
 
 val commonSettings = Seq(
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint"),
@@ -17,7 +20,7 @@ val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core.js, core.jvm, microsite, testing.js, testing.jvm)
+  .aggregate(core.js, core.jvm, microsite, testing.js, testing.jvm, files)
   .settings(
     commonSettings,
     publish / skip := true
@@ -30,14 +33,23 @@ lazy val core = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % fs2V,
       "io.chrisdavenport" %%% "agitation" % agitationV,
-      "org.typelevel" %%% "cats-effect-laws" % catsEffectV % Test,
+      "org.typelevel" %%% "cats-effect-kernel" % catsEffectV,
+      "org.typelevel" %%% "cats-effect-testkit" % catsEffectV % Test,
       "org.scalameta" %%% "munit-scalacheck" % munitV % Test,
-      "org.typelevel" %%% "munit-cats-effect-2" % munitCatsEffectV % "test",
+      "org.typelevel" %%% "munit-cats-effect-3" % munitCatsEffectV % "test",
       "org.typelevel" %%% "scalacheck-effect-munit" % scalacheckEffectV % "test"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
-    crossScalaVersions := Seq(scala212, scala213),
-    addCompilerPlugin("org.typelevel" % "kind-projector" % "0.11.3" cross CrossVersion.full)
+    crossScalaVersions := Seq(scala212, scala213, scala3),
+    libraryDependencies ++= {
+      if (scalaVersion.value.startsWith("2")) {
+        Seq(
+          compilerPlugin("org.typelevel" % "kind-projector" % kindProjectorV cross CrossVersion.full)
+        )
+      } else {
+        Seq.empty
+      }
+    }
   )
   .jsSettings(
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
@@ -54,6 +66,51 @@ lazy val testing = (crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pu
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
   )
   .dependsOn(core % "compile->compile;test->test")
+
+lazy val intCore = (project in file("integration/core"))
+  .settings(
+    commonSettings,
+    name := "fs2-es-integration-core",
+    testFrameworks += new TestFramework("munit.Framework"),
+    crossScalaVersions := Seq(scala212, scala213)
+  )
+  .dependsOn(core.jvm % "compile->compile;test->test")
+
+lazy val files = (project in file("integration/files"))
+  .settings(
+    commonSettings,
+    name := "fs2-es-files",
+    libraryDependencies ++= Seq(
+      "co.fs2" %% "fs2-io" % fs2V
+    ),
+    testFrameworks += new TestFramework("munit.Framework"),
+    crossScalaVersions := Seq(scala212, scala213)
+  )
+  .dependsOn(intCore % "compile->compile;test->test")
+
+lazy val kafka = (project in file("integration/kafka"))
+  .settings(
+    commonSettings,
+    name := "fs2-es-kafka",
+    libraryDependencies ++= Seq(
+      "com.github.fd4s" %% "fs2-kafka" % "3.0.0-M2"
+    ),
+    testFrameworks += new TestFramework("munit.Framework"),
+    crossScalaVersions := Seq(scala212, scala213)
+  )
+  .dependsOn(intCore % "compile->compile;test->test")
+
+lazy val postgresSkunk = (project in file("integration/postgres-skunk"))
+  .settings(
+    commonSettings,
+    name := "fs2-es-pg-skunk",
+    libraryDependencies ++= Seq(
+      "org.tpolecat" %% "skunk-core" % skunkV
+    ),
+    testFrameworks += new TestFramework("munit.Framework"),
+    crossScalaVersions := Seq(scala212, scala213)
+  )
+  .dependsOn(intCore % "compile->compile;test->test")
 
 lazy val microsite = (project in file("microsite"))
   .settings(
