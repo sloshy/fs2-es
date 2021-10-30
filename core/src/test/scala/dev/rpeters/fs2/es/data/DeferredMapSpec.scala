@@ -10,7 +10,7 @@ import dev.rpeters.fs2.es.BaseTestSpec
 import scala.concurrent.duration._
 class DeferredMapSpec extends BaseTestSpec {
 
-  //TODO: expand tests for tryable ops
+  // TODO: expand tests for tryable ops
 
   private def newMap = DeferredMap[IO].empty[String, String]
   val k = "k"
@@ -111,7 +111,7 @@ class DeferredMapSpec extends BaseTestSpec {
 
     val running = program.unsafeToFuture()(rt)
 
-    tc.tick(5.seconds) //Value is completed after 5 seconds
+    tc.tick(5.seconds) // Value is completed after 5 seconds
 
     running.map(r => assertEquals(r, v))(munitExecutionContext)
   }
@@ -215,7 +215,7 @@ class DeferredMapSpec extends BaseTestSpec {
       map <- newMap
       d <- Deferred[IO, String]
       _ <- map.add(k)(d)
-      resultFiber <- map.getOrAddPure(k)(notV).start //Force this to fail if it is unlawful
+      resultFiber <- map.getOrAddPure(k)(notV).start // Force this to fail if it is unlawful
       _ <- d.complete(v)
       result <- resultFiber.joinWithNever
     } yield result

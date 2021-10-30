@@ -32,11 +32,13 @@ object syntax {
 
     /** Apply an event to this state value,
       *
-      * If a state does not exist and it is created, that indicates it was "initialized" by some starting event.
-      * If a state does exist but `None` is returned after applying this function, that state was removed.
+      * If a state does not exist and it is created, that indicates it was "initialized" by some starting event. If a
+      * state does exist but `None` is returned after applying this function, that state was removed.
       *
-      * @param e An event to apply to your state.
-      * @return The current state, a modified state, or a nonexistent state.
+      * @param e
+      *   An event to apply to your state.
+      * @return
+      *   The current state, a modified state, or a nonexistent state.
       */
     def handleEvent(e: E): Option[A] = ev.handleEvent(Some(a))(e)
   }
@@ -45,11 +47,13 @@ object syntax {
 
     /** Apply an event to this state value that may not exist.
       *
-      * If a state does not exist and it is created, that indicates it was "initialized" by some starting event.
-      * If a state does exist but `None` is returned after applying this function, that state was removed.
+      * If a state does not exist and it is created, that indicates it was "initialized" by some starting event. If a
+      * state does exist but `None` is returned after applying this function, that state was removed.
       *
-      * @param e An event to apply to your optional state.
-      * @return The current state, a modified state, or a nonexistent state.
+      * @param e
+      *   An event to apply to your optional state.
+      * @return
+      *   The current state, a modified state, or a nonexistent state.
       */
     def handleEvent(e: E): Option[A] = ev.handleEvent(optA)(e)
   }
@@ -58,11 +62,13 @@ object syntax {
 
     /** Apply an event to this state value.
       *
-      * If the value is `Some[A]`, the state is either modified or untouched.
-      * If the value is `None`, the state is removed.
+      * If the value is `Some[A]`, the state is either modified or untouched. If the value is `None`, the state is
+      * removed.
       *
-      * @param e An event to apply to your state.
-      * @return The current state, a modified state, or a removed state.
+      * @param e
+      *   An event to apply to your state.
+      * @return
+      *   The current state, a modified state, or a removed state.
       */
     def handleEvent(e: E): A = ev.handleEvent(a)(e)
   }
@@ -71,7 +77,8 @@ object syntax {
 
     /** Extract a key from a given value.
       *
-      * @return A key that you extracted.
+      * @return
+      *   A key that you extracted.
       */
     def getKey: K = ev.getKey(a)
   }

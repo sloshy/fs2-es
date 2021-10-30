@@ -8,11 +8,11 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 abstract class BaseTestSpec extends CatsEffectSuite with ScalaCheckEffectSuite {
-  //TODO: Figure out TestContext
+  // TODO: Figure out TestContext
   // val tc = TestContext()
   override def munitExecutionContext: ExecutionContext = ExecutionContext.global
 
-  //Copied from FS2
+  // Copied from FS2
   protected def createDeterministicRuntime: (TestContext, IORuntime) = {
     val ctx = TestContext()
 

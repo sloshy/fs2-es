@@ -17,24 +17,30 @@ trait EventLogSink[F[_], E] { self =>
 
   /** Add an event `E` to your event log. Should be appended to the tail of your log, and nowhere else.
     *
-    * @param e The event to be added to your event log.
-    * @return `F[Unit]` if nothing abnormal occurs, but may throw depending on the implementation.
+    * @param e
+    *   The event to be added to your event log.
+    * @return
+    *   `F[Unit]` if nothing abnormal occurs, but may throw depending on the implementation.
     */
   def add(e: E): F[Unit]
 
-  /** Combines this `EventLogSink` with a given `EventLogSource` to form a full `EventLog`.
-    * Useful if you make multiple calls to `localizeEvent` or `mapStream` and want to recombine the two halves.
+  /** Combines this `EventLogSink` with a given `EventLogSource` to form a full `EventLog`. Useful if you make multiple
+    * calls to `localizeEvent` or `mapStream` and want to recombine the two halves.
     *
-    * @param source An `EventLogSource` for streaming events.
-    * @return An `EventLog` combining both this sink and source together.
+    * @param source
+    *   An `EventLogSource` for streaming events.
+    * @return
+    *   An `EventLog` combining both this sink and source together.
     */
   // def withSource[A](source: EventLogSource[F, A]): EventLog[F, E, A] = EventLog.from(this, source)
 
-  /** Combines this `EventLogSink` with a given `ContinuousEventLogSource` to form a full `ContinuousEventLog`.
-    * Useful if you make multiple calls to `localizeEvent` or `mapStream` and want to recombine the two halves.
+  /** Combines this `EventLogSink` with a given `ContinuousEventLogSource` to form a full `ContinuousEventLog`. Useful
+    * if you make multiple calls to `localizeEvent` or `mapStream` and want to recombine the two halves.
     *
-    * @param source An `EventLogSource` for streaming events.
-    * @return An `EventLog` combining both this sink and source together.
+    * @param source
+    *   An `EventLogSource` for streaming events.
+    * @return
+    *   An `EventLog` combining both this sink and source together.
     */
   // def withContinuousSource[A](source: EventLogSource[F, A]): EventLog[F, E, A] = EventLog.from(this, source)
 }
@@ -48,9 +54,9 @@ object EventLogSink {
     }
 }
 
-/** A source of events from an event log that can be read from start to finish.
-  * Implements the method `streamOnce`, from which you have multiple other methods for retrieving state from events.
-  * If you would like to stream from the event log continuously, see `ContinuousEventLogSource`.
+/** A source of events from an event log that can be read from start to finish. Implements the method `streamOnce`, from
+  * which you have multiple other methods for retrieving state from events. If you would like to stream from the event
+  * log continuously, see `ContinuousEventLogSource`.
   */
 trait FiniteEventLogSource[F[_], E] {
 
@@ -59,22 +65,25 @@ trait FiniteEventLogSource[F[_], E] {
 
   /** Computes a final state value from your event log.
     *
-    * Applies all events to a single state value, and if at least one event is seen, results in a singleton stream containing your final state.
-    * Otherwise, the stream will contain a single `None`.
-    * Useful if your event log corresponds to a single result value or "aggregate root".
+    * Applies all events to a single state value, and if at least one event is seen, results in a singleton stream
+    * containing your final state. Otherwise, the stream will contain a single `None`. Useful if your event log
+    * corresponds to a single result value or "aggregate root".
     *
-    * @return A singleton stream of a final state value, assuming it exists, or `None`.
+    * @return
+    *   A singleton stream of a final state value, assuming it exists, or `None`.
     */
   def getState[A](implicit driven: Driven[E, A]): Stream[F, Option[A]] =
     streamOnce.fold(none[A])(_.handleEvent(_))
 
   /** Computes a final state value from your event log, starting with an initial state.
     *
-    * Applies all events to a single state value, starting with your initial event supplied.
-    * Useful if your event log corresponds to a single result value or "aggregate root".
+    * Applies all events to a single state value, starting with your initial event supplied. Useful if your event log
+    * corresponds to a single result value or "aggregate root".
     *
-    * @param initial Your initial starting state.
-    * @return A singleton stream of a final state value after applying all events to your starting state.
+    * @param initial
+    *   Your initial starting state.
+    * @return
+    *   A singleton stream of a final state value after applying all events to your starting state.
     */
   def getState[A](initial: A)(implicit driven: DrivenNonEmpty[E, A]): Stream[F, A] =
     streamOnce.fold(initial)(_.handleEvent(_))
@@ -98,14 +107,17 @@ trait KeyedFiniteEventLogSource[F[_], K, E] extends FiniteEventLogSource[F, E] {
   def streamOnceForKey(key: K)(implicit keyed: Keyed[K, E]) =
     streamOnce.filter(_.getKey == key)
 
-  /** A variant of `streamOnce` that filters by multiple keys. Can be overridden in the implementation for efficiency. */
+  /** A variant of `streamOnce` that filters by multiple keys. Can be overridden in the implementation for efficiency.
+    */
   def streamOnceForKeyBatch(keys: NonEmptySet[K])(implicit keyed: Keyed[K, E]) =
     streamOnce.filter(e => keys.contains(e.getKey))
 
   /** Gets a single state as defined by the key you are filtering by.
     *
-    * @param key The key you wish to filter for.
-    * @return A singleton stream of your final state value, assuming it exists.
+    * @param key
+    *   The key you wish to filter for.
+    * @return
+    *   A singleton stream of your final state value, assuming it exists.
     */
   def getOneState[A](
       key: K
@@ -114,16 +126,20 @@ trait KeyedFiniteEventLogSource[F[_], K, E] extends FiniteEventLogSource[F, E] {
 
   /** Gets a single state as defined by the key you are filtering by and an initial state.
     *
-    * @param key The key you wish to filter for.
-    * @param initial The initial state value you are starting with.
-    * @return A singleton stream of your final state value after applying all events to your starting state.
+    * @param key
+    *   The key you wish to filter for.
+    * @param initial
+    *   The initial state value you are starting with.
+    * @return
+    *   A singleton stream of your final state value after applying all events to your starting state.
     */
   def getOneState[A](key: K, initial: A)(implicit keyedState: KeyedStateNonEmpty[K, E, A]): Stream[F, A] =
     streamOnceForKey(key).fold(initial)(_.handleEvent(_))
 
   /** Computes all final state values from your event log and groups them by-key.
     *
-    * @return A singleton stream of all final states grouped by-key from this event log.
+    * @return
+    *   A singleton stream of all final states grouped by-key from this event log.
     */
   def getAllKeyedStates[A](implicit keyedState: KeyedState[K, E, A]): Stream[F, Map[K, A]] =
     streamOnce.fold(Map.empty[K, A]) { (stateMap, event) =>
@@ -134,11 +150,13 @@ trait KeyedFiniteEventLogSource[F[_], K, E] extends FiniteEventLogSource[F, E] {
       }
     }
 
-  /** Computes all final state values from your event log and groups them by key.
-    * This version assumes that all states must exist, and can never be removed, so they must have an initial value.
+  /** Computes all final state values from your event log and groups them by key. This version assumes that all states
+    * must exist, and can never be removed, so they must have an initial value.
     *
-    * @param initial A function where, for some key, you can derive an initial state.
-    * @return A singleton stream of all final states grouped by-key from this event log.
+    * @param initial
+    *   A function where, for some key, you can derive an initial state.
+    * @return
+    *   A singleton stream of all final states grouped by-key from this event log.
     */
   def getAllKeyedStates[A](initial: K => A)(implicit keyedState: KeyedStateNonEmpty[K, E, A]): Stream[F, Map[K, A]] =
     streamOnce.fold(Map.empty[K, A]) { (stateMap, event) =>
@@ -151,8 +169,10 @@ trait KeyedFiniteEventLogSource[F[_], K, E] extends FiniteEventLogSource[F, E] {
 
   /** Computes all final state values from your event log, but only of the keys you specify.
     *
-    * @param keys All of the keys you wish to filter for in your result batch.
-    * @return A singleton stream of a map of all the final states of your specified keys.
+    * @param keys
+    *   All of the keys you wish to filter for in your result batch.
+    * @return
+    *   A singleton stream of a map of all the final states of your specified keys.
     */
   def getKeyedStateBatch[A](keys: NonEmptySet[K])(implicit keyedState: KeyedState[K, E, A]): Stream[F, Map[K, A]] =
     streamOnceForKeyBatch(keys).fold(Map.empty[K, A]) { (stateMap, event) =>
@@ -165,11 +185,13 @@ trait KeyedFiniteEventLogSource[F[_], K, E] extends FiniteEventLogSource[F, E] {
 
   /** Computes final state values from your event log and groups them by-key, but only for specific states.
     *
-    * This version will only apply states to the keyed states that exist in your initial map.
-    * If a state does not exist in the map, it will not be initialized.
+    * This version will only apply states to the keyed states that exist in your initial map. If a state does not exist
+    * in the map, it will not be initialized.
     *
-    * @param initial A `NonEmptyMap` of keyed states you wish to apply events to.
-    * @return A singleton stream of a map containing all of your pre-specified keys and their resulting states.
+    * @param initial
+    *   A `NonEmptyMap` of keyed states you wish to apply events to.
+    * @return
+    *   A singleton stream of a map containing all of your pre-specified keys and their resulting states.
     */
   def getKeyedStateBatch[A](
       initial: NonEmptyMap[K, A]
@@ -197,9 +219,9 @@ object KeyedFiniteEventLogSource {
 
 /** An event log with both a source and sink that has a known end (or last event).
   *
-  * The `In` type defines the type of all events going into your log.
-  * The `E` type defines the type of all events that you stream out of your log.
-  * In many cases, `In` and `E` will be the same, but it is possible to map the input/output types to change them using `contramap` and `map` respectively.
+  * The `In` type defines the type of all events going into your log. The `E` type defines the type of all events that
+  * you stream out of your log. In many cases, `In` and `E` will be the same, but it is possible to map the input/output
+  * types to change them using `contramap` and `map` respectively.
   */
 trait FiniteEventLog[F[_], In, Out] extends EventLogSink[F, In] with FiniteEventLogSource[F, Out]
 
@@ -238,10 +260,9 @@ object FiniteEventLog {
   *
   * This enables you to use certain keyed operations to get the final values of your state.
   *
-  * The `K` type defines the key type of your events.
-  * The `In` type defines the type of all events going into your log.
-  * The `E` type defines the type of all events that you stream out of your log.
-  * In many cases, `In` and `E` will be the same, but it is possible to map the input/output types using `contramap` and `map` respectively.
+  * The `K` type defines the key type of your events. The `In` type defines the type of all events going into your log.
+  * The `E` type defines the type of all events that you stream out of your log. In many cases, `In` and `E` will be the
+  * same, but it is possible to map the input/output types using `contramap` and `map` respectively.
   */
 trait KeyedFiniteEventLog[F[_], K, In, Out] extends EventLogSink[F, In] with KeyedFiniteEventLogSource[F, K, Out]
 
@@ -280,13 +301,14 @@ object KeyedFiniteEventLog {
 
 /** A source that allows you to continuously stream events as they are published.
   *
-  * As opposed to a `FiniteEventLogSource`, there is no known "end point" due to some implementation detail.
-  * Because of this, you are not able to get individual states from this event log, but you instead must continuously process events as they come in.
+  * As opposed to a `FiniteEventLogSource`, there is no known "end point" due to some implementation detail. Because of
+  * this, you are not able to get individual states from this event log, but you instead must continuously process
+  * events as they come in.
   */
 trait ContinuousEventLogSource[F[_], E] {
 
-  /** Continuously streams events from an event log.
-    * As opposed to `streamOnce` on `FiniteEventLogSource`, this will continue giving you updates as they come in.
+  /** Continuously streams events from an event log. As opposed to `streamOnce` on `FiniteEventLogSource`, this will
+    * continue giving you updates as they come in.
     */
   def streamContinuously: Stream[F, E]
 
@@ -294,7 +316,8 @@ trait ContinuousEventLogSource[F[_], E] {
     *
     * Assumes that all events will apply to a single state value.
     *
-    * @return A continuous stream of any state values, assuming any exist.
+    * @return
+    *   A continuous stream of any state values, assuming any exist.
     */
   def getStateContinuously[A](implicit driven: Driven[E, A]): Stream[F, Option[A]] =
     streamContinuously.scan(none[A])(_.handleEvent(_)).drop(1)
@@ -303,8 +326,10 @@ trait ContinuousEventLogSource[F[_], E] {
     *
     * Assumes that all events will apply to a single state value.
     *
-    * @param initial Your initial starting state.
-    * @return A singleton stream of a final state value after applying all events to your starting state.
+    * @param initial
+    *   Your initial starting state.
+    * @return
+    *   A singleton stream of a final state value after applying all events to your starting state.
     */
   def getStateContinuously[A](initial: A)(implicit driven: DrivenNonEmpty[E, A]): Stream[F, A] =
     streamContinuously.scan(initial)(_.handleEvent(_)).drop(1)
@@ -323,7 +348,8 @@ object ContinuousEventLogSource {
 
 /** A `ContinuousEventLogSource` where every event has a known key.
   *
-  * This allows you to stream evvents and states based on key filters, and can be optimized per-implementation using downstream filtering mechanisms.
+  * This allows you to stream evvents and states based on key filters, and can be optimized per-implementation using
+  * downstream filtering mechanisms.
   */
 trait KeyedContinuousEventLogSource[F[_], K, E] extends ContinuousEventLogSource[F, E] {
 
@@ -337,8 +363,10 @@ trait KeyedContinuousEventLogSource[F[_], K, E] extends ContinuousEventLogSource
 
   /** Filters by a given key and produces a stream of every known state that occurs.
     *
-    * @param key The key you wish to filter for.
-    * @return A stream of all known states for the key you filter for, along with the event that produced that state.
+    * @param key
+    *   The key you wish to filter for.
+    * @return
+    *   A stream of all known states for the key you filter for, along with the event that produced that state.
     */
   def getOneStateContinuously[A](
       key: K
@@ -353,9 +381,12 @@ trait KeyedContinuousEventLogSource[F[_], K, E] extends ContinuousEventLogSource
     *
     * Uses an initial state value, so that the resulting state is not optional and cannot be erased (unless that c)
     *
-    * @param key The key you wish to filter for.
-    * @param initial The initial state value you are starting with.
-    * @return A stream of all known states for the key you filter for, along with the event that produced that state.
+    * @param key
+    *   The key you wish to filter for.
+    * @param initial
+    *   The initial state value you are starting with.
+    * @return
+    *   A stream of all known states for the key you filter for, along with the event that produced that state.
     */
   def getOneStateContinuously[A](key: K, initial: A)(implicit
       keyedState: KeyedStateNonEmpty[K, E, A]
@@ -369,7 +400,9 @@ trait KeyedContinuousEventLogSource[F[_], K, E] extends ContinuousEventLogSource
     *
     * If an event would have caused a state to be `None`, that entry will not exist in the output map.
     *
-    * @return A continuous stream of all states by-key from this event log, along with the most recent event that modified any state and the specific state modified.
+    * @return
+    *   A continuous stream of all states by-key from this event log, along with the most recent event that modified any
+    *   state and the specific state modified.
     */
   def getAllKeyedStateContinuously[A](implicit
       keyedState: KeyedState[K, E, A]
@@ -388,8 +421,11 @@ trait KeyedContinuousEventLogSource[F[_], K, E] extends ContinuousEventLogSource
 
   /** Computes all states from your event log by-key, with an initial set of starting states.
     *
-    * @param initial A `NonEmptyMap` of keyed states you wish to apply events to.
-    * @return A continuous stream of a map containing all of your pre-specified keys and their states, along with the most recent event that modified any state.
+    * @param initial
+    *   A `NonEmptyMap` of keyed states you wish to apply events to.
+    * @return
+    *   A continuous stream of a map containing all of your pre-specified keys and their states, along with the most
+    *   recent event that modified any state.
     */
   def getAllKeyedStateContinuously[A](
       initial: NonEmptyMap[K, A]
@@ -415,8 +451,11 @@ trait KeyedContinuousEventLogSource[F[_], K, E] extends ContinuousEventLogSource
 
   /** Produces a stream of states filtered by the keys you specify.
     *
-    * @param keys All of the keys you wish to filter for in your result stream.
-    * @return A continuous stream of all the states of your specified keys along with the event that triggered them, and the most recently changed state.
+    * @param keys
+    *   All of the keys you wish to filter for in your result stream.
+    * @return
+    *   A continuous stream of all the states of your specified keys along with the event that triggered them, and the
+    *   most recently changed state.
     */
   def getKeyedStateBatchContinuously[A](
       keys: NonEmptySet[K]
@@ -435,11 +474,13 @@ trait KeyedContinuousEventLogSource[F[_], K, E] extends ContinuousEventLogSource
 
   /** Produces a stream of states filtered by the keys of the key/value pairs you specify.
     *
-    * This version will only apply states to the keyed states that exist in your initial map.
-    * If a state does not exist in the map, it will not be initialized.
+    * This version will only apply states to the keyed states that exist in your initial map. If a state does not exist
+    * in the map, it will not be initialized.
     *
-    * @param initial A `NonEmptyMap` of keyed states you wish to apply events to.
-    * @return A stream of maps containing all of your pre-specified keys and their states.
+    * @param initial
+    *   A `NonEmptyMap` of keyed states you wish to apply events to.
+    * @return
+    *   A stream of maps containing all of your pre-specified keys and their states.
     */
   def getKeyedStateBatchContinuously[A](
       initial: NonEmptyMap[K, A]
@@ -467,7 +508,8 @@ object KeyedContinuousEventLogSource {
   /** The results of streaming from a keyed continuous stream. */
   final case class KeyedContinuousStreamResult[K, E, A](event: E, state: Option[A], allStates: Map[K, A])
 
-  /** The results of streaming from a keyed continuous stream after providing an initial value, for non-empty domains. */
+  /** The results of streaming from a keyed continuous stream after providing an initial value, for non-empty domains.
+    */
   final case class NonEmptyKeyedContinuousStreamResult[K, E, A](event: E, state: A, allStates: NonEmptyMap[K, A])
 
   implicit def keyedContinuousEventLogSourceFunctor[F[_], K]: Functor[KeyedContinuousEventLogSource[F, K, *]] =
@@ -541,18 +583,20 @@ object KeyedContinuousEventLog {
     }
 }
 
-/** An event log where you can stream events and states "until the end" as well as continuously.
-  * Functions as both a `FiniteEventLog` and a `ContinuousEventLog`.
+/** An event log where you can stream events and states "until the end" as well as continuously. Functions as both a
+  * `FiniteEventLog` and a `ContinuousEventLog`.
   */
 trait EventLog[F[_], In, Out] extends ContinuousEventLog[F, In, Out] with FiniteEventLog[F, In, Out]
 
 object EventLog {
 
-  /** Creates an in-memory event log that you can subscribe to or stream front-to-back.
-    * Useful for testing purposes. Do not use for extended periods of time due to increased memory usage.
+  /** Creates an in-memory event log that you can subscribe to or stream front-to-back. Useful for testing purposes. Do
+    * not use for extended periods of time due to increased memory usage.
     *
-    * @param bufferSize The size of the buffer for subscribing to continuous events published. Defaults to 512.
-    * @return An `EventLog` that operates entirely in-memory.
+    * @param bufferSize
+    *   The size of the buffer for subscribing to continuous events published. Defaults to 512.
+    * @return
+    *   An `EventLog` that operates entirely in-memory.
     */
   def inMemory[F[_]: Concurrent, E](bufferSize: Int = 512) = for {
     top <- Topic[F, E]
@@ -617,11 +661,13 @@ trait KeyedEventLog[F[_], K, In, Out]
 
 object KeyedEventLog {
 
-  /** Creates an in-memory keyed event log that you can subscribe to or stream front-to-back.
-    * Useful for testing purposes. Do not use for extended periods of time due to increased memory usage.
+  /** Creates an in-memory keyed event log that you can subscribe to or stream front-to-back. Useful for testing
+    * purposes. Do not use for extended periods of time due to increased memory usage.
     *
-    * @param bufferSize The size of the buffer for subscribing to continuous events published. Defaults to 512.
-    * @return A `KeyedEventLog` that operates entirely in-memory.
+    * @param bufferSize
+    *   The size of the buffer for subscribing to continuous events published. Defaults to 512.
+    * @return
+    *   A `KeyedEventLog` that operates entirely in-memory.
     */
   def inMemory[F[_]: Concurrent, K, E](bufferSize: Int = 512) = EventLog.inMemory[F, E](bufferSize).map { el =>
     new KeyedEventLog[F, K, E, E] {

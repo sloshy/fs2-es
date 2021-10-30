@@ -7,18 +7,18 @@ import cats.syntax.all._
 /** A map with values that may or may not be completed */
 sealed trait DeferredMap[F[_], K, V] {
 
-  /** Add a value to this map that may be completed later.
-    * If this key is already being awaited by another Deferred, it will attempt to complete the value silently.
+  /** Add a value to this map that may be completed later. If this key is already being awaited by another Deferred, it
+    * will attempt to complete the value silently.
     */
   def add(k: K)(d: Deferred[F, V]): F[Unit]
 
-  /** Add a value to this map once a given `F` completes.
-    * If this key is already being awaited, it will attempt to complete the value silently.
+  /** Add a value to this map once a given `F` completes. If this key is already being awaited, it will attempt to
+    * complete the value silently.
     */
   def addF(k: K)(f: F[V]): F[Unit]
 
-  /** Add a pure value to this map that is pre-completed.
-    * If this key is being awaited, it will attempt to complete the deferred upon insert silently.
+  /** Add a pure value to this map that is pre-completed. If this key is being awaited, it will attempt to complete the
+    * deferred upon insert silently.
     */
   def addPure(k: K)(v: V): F[Unit]
 
@@ -28,25 +28,22 @@ sealed trait DeferredMap[F[_], K, V] {
   /** Get the value for a given key asynchronously once it is available. */
   def get(k: K): F[V]
 
-  /** Get the value for a given key asynchronously only if the key currently exists.
-    * This means if a value is currently being awaited, you will eventually receive `Some` value.
-    * Otherwise, it will immediately return `None`.
+  /** Get the value for a given key asynchronously only if the key currently exists. This means if a value is currently
+    * being awaited, you will eventually receive `Some` value. Otherwise, it will immediately return `None`.
     */
   def getOpt(k: K): F[Option[V]]
 
-  /** If the given key exists, await its final value.
-    * Otherwise, the provided deferred will be awaited and added to the map immediately.
+  /** If the given key exists, await its final value. Otherwise, the provided deferred will be awaited and added to the
+    * map immediately.
     */
   def getOrAdd(k: K)(d: Deferred[F, V]): F[V]
 
-  /** If the given key exists, await its final value.
-    * Otherwise, the provided effect will be evaluated to obtain that value.
-    * A Deferred is created internally so that the result can be awaited as it is evaluated.
+  /** If the given key exists, await its final value. Otherwise, the provided effect will be evaluated to obtain that
+    * value. A Deferred is created internally so that the result can be awaited as it is evaluated.
     */
   def getOrAddF(k: K)(f: F[V]): F[V]
 
-  /** If the given key exists, await its final value.
-    * Otherwise, the provided pure value `v` will be added to the map.
+  /** If the given key exists, await its final value. Otherwise, the provided pure value `v` will be added to the map.
     */
   def getOrAddPure(k: K)(v: V): F[V]
 
@@ -65,13 +62,12 @@ sealed trait DeferredMap[F[_], K, V] {
   /** `None` if the key does not currently exist, `Some(true)` if completed, `Some(false)` if incomplete. */
   def checkCompleted(k: K): F[Option[Boolean]]
 
-  /** Remove a value from this map only if it has been completed.
-    * Result is whether the operation is successful.
+  /** Remove a value from this map only if it has been completed. Result is whether the operation is successful.
     */
   def delIfComplete(k: K): F[Option[Boolean]]
 
-  /** Remove a value from this map only if its deferred has not been completed.
-    * Result is whether or not the operation is successful.
+  /** Remove a value from this map only if its deferred has not been completed. Result is whether or not the operation
+    * is successful.
     */
   def delIfIncomplete(k: K): F[Option[Boolean]]
 
