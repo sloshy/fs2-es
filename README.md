@@ -1,4 +1,7 @@
 # FS2-ES
+
+**This project is currently undergoing major changes, and should be avoided for new projects at this time. This message will be gone once the library has been updated.**
+
 ![Sonatype Nexus (Releases)](https://img.shields.io/nexus/r/dev.rpeters/fs2-es_2.13?label=latest&server=https%3A%2F%2Foss.sonatype.org) [![Gitter](https://badges.gitter.im/fs2-es/community.svg)](https://gitter.im/fs2-es/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 This is a small library to encode event-sourcing patterns using FS2, a streaming library in Scala.
