@@ -8,4 +8,4 @@ addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.1.0")
 //Deploy
 addSbtPlugin("com.geirsson" % "sbt-ci-release" % "1.5.7")
 addSbtPlugin("com.codecommit" % "sbt-github-actions" % "0.13.0")
-addSbtPlugin("com.47deg" % "sbt-microsites" % "1.3.4")
+addSbtPlugin("com.47deg" % "sbt-microsites" % "1.4.0")
