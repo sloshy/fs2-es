@@ -1,6 +1,6 @@
 # FS2-ES
 
-**This project is currently undergoing major changes, and should be avoided for new projects at this time. This message will be gone once the library has been updated.**
+**This project is not actively maintained as of October 2021, and should be avoided for new projects at this time. If you are looking for event-sourcing needs in the Typelevel ecosystem, please check out [edomata](https://github.com/hnaderi/edomata) instead.**
 
 ![Sonatype Nexus (Releases)](https://img.shields.io/nexus/r/dev.rpeters/fs2-es_2.13?label=latest&server=https%3A%2F%2Foss.sonatype.org) [![Gitter](https://badges.gitter.im/fs2-es/community.svg)](https://gitter.im/fs2-es/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
