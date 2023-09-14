@@ -9,9 +9,9 @@ name: Continuous Integration
 
 on:
   pull_request:
-    branches: ['*']
+    branches: ['**']
   push:
-    branches: ['*']
+    branches: ['**']
     tags: [v*]
 
 env:
@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.4]
+        scala: [2.13.12]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Java and Scala
-        uses: olafurpg/setup-scala@v10
+        uses: olafurpg/setup-scala@v13
         with:
           java-version: ${{ matrix.java }}
 
@@ -56,7 +56,7 @@ jobs:
         run: sbt ++${{ matrix.scala }} test
 
       - name: Compress target directories
-        run: tar cf targets.tar testing/.jvm/target target core/.js/target testing/.js/target microsite/target core/.jvm/target project/target
+        run: tar cf targets.tar testing/.jvm/target target core/.js/target integration/files/target testing/.js/target microsite/target integration/kafka/target core/.jvm/target integration/postgres-skunk/target integration/core/target project/target
 
       - name: Upload target directories
         uses: actions/upload-artifact@v2
@@ -71,7 +71,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.4]
+        scala: [2.13.12]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
@@ -81,7 +81,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Java and Scala
-        uses: olafurpg/setup-scala@v10
+        uses: olafurpg/setup-scala@v13
         with:
           java-version: ${{ matrix.java }}
 
@@ -97,12 +97,12 @@ jobs:
             ~/Library/Caches/Coursier/v1
           key: ${{ runner.os }}-sbt-cache-v2-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}
 
-      - name: Download target directories (2.13.4)
+      - name: Download target directories (2.13.12)
         uses: actions/download-artifact@v2
         with:
-          name: target-${{ matrix.os }}-2.13.4-${{ matrix.java }}
+          name: target-${{ matrix.os }}-2.13.12-${{ matrix.java }}
 
-      - name: Inflate target directories (2.13.4)
+      - name: Inflate target directories (2.13.12)
         run: |
           tar xf targets.tar
           rm targets.tar
@@ -120,7 +120,7 @@ jobs:
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
         run: sbt ++${{ matrix.scala }} ci-release
 
-      - if: matrix.scala == 2.12.13
+      - if: matrix.scala == 2.12.15
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: sbt ++${{ matrix.scala }} microsite/makeMicrosite
