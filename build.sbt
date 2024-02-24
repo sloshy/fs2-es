@@ -7,7 +7,7 @@ val fs2V = "3.1.3"
 val munitV = "0.7.29"
 val munitCatsEffectV = "1.0.5"
 val scalacheckEffectV = "1.0.2"
-val kindProjectorV = "0.13.2"
+val kindProjectorV = "0.13.3"
 val skunkV = "0.2.2"
 
 val scala3 = "3.0.2"
