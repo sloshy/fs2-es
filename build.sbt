@@ -3,7 +3,7 @@ import microsites._
 //Deps
 val agitationV = "0.3.0-M1"
 val catsEffectV = "3.2.9"
-val fs2V = "3.1.3"
+val fs2V = "3.10.0"
 val munitV = "0.7.29"
 val munitCatsEffectV = "1.0.5"
 val scalacheckEffectV = "1.0.2"
