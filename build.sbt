@@ -4,7 +4,7 @@ import microsites._
 val agitationV = "0.3.0-M1"
 val catsEffectV = "3.2.9"
 val fs2V = "3.1.3"
-val munitV = "0.7.29"
+val munitV = "1.0.0"
 val munitCatsEffectV = "1.0.5"
 val scalacheckEffectV = "1.0.2"
 val kindProjectorV = "0.13.2"
